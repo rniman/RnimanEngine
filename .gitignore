@@ -1,0 +1,63 @@
+# Adapted from the user-provided VisualStudio/C++ gitignore template.
+# Visual Studio personal settings and caches
+.vs/
+ipch/
+*.suo
+*.user
+*.rsuser
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+*.opendb
+*.opensdf
+*.sdf
+*.ncb
+*.aps
+*.cachefile
+*.nvuser
+.localhistory/
+.vshistory/
+
+# Engine build directories (do not hide third-party bin/x64 folders)
+/bin/
+/obj/
+/[Dd]ebug/
+/[Rr]elease/
+/x64/
+/x86/
+/Sandbox/[Dd]ebug/
+/Sandbox/[Rr]elease/
+/Sandbox/x64/
+/Sandbox/x86/
+
+# C++ intermediate files and MSBuild diagnostics
+*.pch
+*.gch
+*.ilk
+*.iobj
+*.ipdb
+*.pdb
+*.idb
+*.tlog
+*.lastbuildstate
+*.binlog
+*.sbr
+*.pgc
+*.pgd
+
+# Visual Studio profiler and coverage output
+*.psess
+*.vsp
+*.vspx
+*.coverage
+*.coveragexml
+
+# Visual Studio project upgrade reports
+_UpgradeReport_Files/
+UpgradeLog*.XML
+UpgradeLog*.htm
+
+# Keep Unity .meta, OBJ models, bin/DDS assets, shader sources and
+# third-party .lib/.dll/.exe files eligible for version control.
+# Add asset-cache directories only after their locations are defined.

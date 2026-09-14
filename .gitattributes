@@ -1,0 +1,32 @@
+# Normalize detected text files to LF in the index and working tree.
+* text=auto eol=lf
+
+# Source and project configuration
+*.cpp text
+*.h text
+*.hlsl text
+*.hlsli text
+*.slnx text
+*.vcxproj text
+*.filters text
+*.props text
+*.targets text
+*.md text
+
+# Windows command scripts use CRLF when checked out.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets must not undergo line-ending conversion.
+*.bin binary
+*.dds binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.tga binary
+*.fbx binary
+*.wav binary
+*.ogg binary
+*.zip binary
+*.dll binary
+*.lib binary
