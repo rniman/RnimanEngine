@@ -1,0 +1,8 @@
+<Project>
+  <!-- This file is discovered from each project's ancestor directories. -->
+  <PropertyGroup>
+    <EngineRoot>$(MSBuildThisFileDirectory)</EngineRoot>
+    <OutDir>$(EngineRoot)bin\$(MSBuildProjectName)\$(Configuration)\</OutDir>
+    <IntDir>$(EngineRoot)obj\$(MSBuildProjectName)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+</Project>
