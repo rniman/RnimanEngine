@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "D3D12Renderer.h"
 
 #include <Windows.h>
 
@@ -9,31 +10,77 @@ namespace
 	constexpr wchar_t WINDOW_CLASS_NAME[] = L"RnimanSandboxWindow";
 	constexpr wchar_t WINDOW_TITLE[] = L"Rniman Engine - Sandbox";
 
+	struct WindowState
+	{
+		UINT width = 1280;
+		UINT height = 720;
+		bool minimized = false;
+		bool resizePending = false;
+	};
+
 	void ReportWin32Error(const wchar_t* operation, DWORD error)
 	{
 		wchar_t message[512]{};
-		swprintf_s(message, L"%ls failed. Win32 error: %lu\n", operation, error);
+		swprintf_s(
+			message,
+			L"%ls failed. Win32 error: %lu\n",
+			operation,
+			error);
 		OutputDebugStringW(message);
 		MessageBoxW(nullptr, message, L"Sandbox error", MB_OK | MB_ICONERROR);
 	}
 
-	LRESULT CALLBACK ProcessWindowMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+	LRESULT CALLBACK ProcessWindowMessage(
+		HWND window,
+		UINT message,
+		WPARAM wParam,
+		LPARAM lParam)
 	{
+		if (message == WM_NCCREATE)
+		{
+			auto* creation = reinterpret_cast<CREATESTRUCTW*>(lParam);
+			SetLastError(ERROR_SUCCESS);
+			if (SetWindowLongPtrW(
+				window,
+				GWLP_USERDATA,
+				reinterpret_cast<LONG_PTR>(creation->lpCreateParams)) == 0 &&
+				GetLastError() != ERROR_SUCCESS)
+			{
+				ReportWin32Error(L"SetWindowLongPtrW", GetLastError());
+				return FALSE;
+			}
+		}
+
+		auto* state = reinterpret_cast<WindowState*>(GetWindowLongPtrW(window, GWLP_USERDATA));
 		switch (message)
 		{
+		case WM_SIZE:
+			if (state != nullptr)
+			{
+				state->width = LOWORD(lParam);
+				state->height = HIWORD(lParam);
+				state->minimized = wParam == SIZE_MINIMIZED;
+				state->resizePending = true;
+			}
+
+			return 0;
 		case WM_CLOSE:
-			// The message loop exits before the owning scope destroys the window.
+			// 앱이 GPU 작업을 정리한 뒤 창 소유자를 파괴하도록 루프만 종료한다.
 			PostQuitMessage(0);
 			return 0;
 		case WM_DESTROY:
 			PostQuitMessage(0);
 			return 0;
 		default:
-			return DefWindowProcW(window, message, wParam, lParam);
+			return DefWindowProcW(
+				window,
+				message,
+				wParam,
+				lParam);
 		}
 	}
 
-	// One UI thread owns both resources; destroy the window before unregistering its class.
+	// UI 스레드가 창을 소유하며 창 파괴 후 클래스를 해제한다.
 	class WindowResources
 	{
 	public:
@@ -47,6 +94,7 @@ namespace
 			{
 				ReportWin32Error(L"DestroyWindow", GetLastError());
 			}
+
 			if (mClassRegistered && !UnregisterClassW(WINDOW_CLASS_NAME, mInstance))
 			{
 				ReportWin32Error(L"UnregisterClassW", GetLastError());
@@ -56,7 +104,7 @@ namespace
 		WindowResources(const WindowResources&) = delete;
 		WindowResources& operator=(const WindowResources&) = delete;
 
-		bool Initialize(int showCommand)
+		bool Initialize(int showCommand, WindowState& state)
 		{
 			WNDCLASSEXW windowClass{};
 			windowClass.cbSize = sizeof(windowClass);
@@ -68,6 +116,7 @@ namespace
 				ReportWin32Error(L"LoadCursorW", GetLastError());
 				return false;
 			}
+
 			windowClass.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
 			windowClass.lpszClassName = WINDOW_CLASS_NAME;
 			if (RegisterClassExW(&windowClass) == 0)
@@ -75,14 +124,20 @@ namespace
 				ReportWin32Error(L"RegisterClassExW", GetLastError());
 				return false;
 			}
+
 			mClassRegistered = true;
 
 			RECT bounds{ 0, 0, 1280, 720 };
-			if (!AdjustWindowRectEx(&bounds, WS_OVERLAPPEDWINDOW, FALSE, 0))
+			if (!AdjustWindowRectEx(
+				&bounds,
+				WS_OVERLAPPEDWINDOW,
+				FALSE,
+				0))
 			{
 				ReportWin32Error(L"AdjustWindowRectEx", GetLastError());
 				return false;
 			}
+
 			mWindow = CreateWindowExW(
 				0,
 				WINDOW_CLASS_NAME,
@@ -95,7 +150,7 @@ namespace
 				nullptr,
 				nullptr,
 				mInstance,
-				nullptr);
+				&state);
 			if (mWindow == nullptr)
 			{
 				ReportWin32Error(L"CreateWindowExW", GetLastError());
@@ -106,6 +161,11 @@ namespace
 			return true;
 		}
 
+		HWND GetHandle() const
+		{
+			return mWindow;
+		}
+
 	private:
 		HINSTANCE mInstance;
 		HWND mWindow = nullptr;
@@ -113,29 +173,73 @@ namespace
 	};
 }
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
+int WINAPI wWinMain(
+	HINSTANCE instance,
+	HINSTANCE,
+	PWSTR,
+	int showCommand)
 {
+	// 콜백의 비소유 상태 포인터는 창 파괴까지 유효해야 한다.
+	WindowState state;
 	WindowResources window{ instance };
-	if (!window.Initialize(showCommand))
+	if (!window.Initialize(showCommand, state))
 	{
 		return 1;
 	}
 
-	// Wait for messages while no rendering loop exists; do not busy-spin.
-	MSG message{};
+	// 역순 파괴로 렌더러의 GPU 자원이 HWND보다 먼저 정리된다.
+	D3D12Renderer renderer;
+	if (!renderer.Initialize(
+		window.GetHandle(),
+		state.width == 0 ? 1280 : state.width,
+		state.height == 0 ? 720 : state.height))
+	{
+		return 1;
+	}
+
 	while (true)
 	{
-		BOOL result = GetMessageW(&message, nullptr, 0, 0);
-		if (result == -1)
+		MSG message{};
+		while (PeekMessageW(
+			&message,
+			nullptr,
+			0,
+			0,
+			PM_REMOVE))
 		{
-			ReportWin32Error(L"GetMessageW", GetLastError());
+			if (message.message == WM_QUIT)
+			{
+				return renderer.WaitForGpu() ? static_cast<int>(message.wParam) : 1;
+			}
+
+			TranslateMessage(&message);
+			DispatchMessageW(&message);
+		}
+
+		if (state.minimized || state.width == 0 || state.height == 0)
+		{
+			if (!WaitMessage())
+			{
+				ReportWin32Error(L"WaitMessage", GetLastError());
+				return 1;
+			}
+
+			continue;
+		}
+
+		if (state.resizePending)
+		{
+			if (!renderer.Resize(state.width, state.height))
+			{
+				return 1;
+			}
+
+			state.resizePending = false;
+		}
+
+		if (!renderer.Render())
+		{
 			return 1;
 		}
-		if (result == 0)
-		{
-			return static_cast<int>(message.wParam);
-		}
-		TranslateMessage(&message);
-		DispatchMessageW(&message);
 	}
 }
