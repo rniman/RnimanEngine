@@ -19,6 +19,9 @@ ipch/
 .localhistory/
 .vshistory/
 
+# Local learning notes
+/docs/memo/
+
 # Engine build directories (do not hide third-party bin/x64 folders)
 /bin/
 /obj/
