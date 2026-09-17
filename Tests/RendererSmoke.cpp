@@ -99,6 +99,12 @@ int main()
 			return 1;
 		}
 
+		// 아직 제출하지 않은 상태의 전체 대기는 자원을 건드리지 않아야 한다.
+		if (!renderer.WaitForGpu())
+		{
+			return 1;
+		}
+
 		// 같은 Adapter의 Device는 프로세스 내 singleton이다. 테스트가 InfoQueue를 보관하여
 		// 렌더러 공개 API를 진단용으로 확장하지 않고 생성·렌더링·파괴 메시지를 검사한다.
 		ComPtr<IDXGIFactory6> factory;
@@ -182,7 +188,8 @@ int main()
 				return 1;
 			}
 
-			for (int frame = 0; frame < 3; ++frame)
+			// 명시적 전체 대기 없이 두 프레임 자원을 반복해서 재사용한다.
+			for (int frame = 0; frame < 16; ++frame)
 			{
 				if (!renderer.Render())
 				{
@@ -194,6 +201,20 @@ int main()
 		if (!renderer.WaitForGpu())
 		{
 			return 1;
+		}
+
+		if (!renderer.WaitForGpu())
+		{
+			return 1;
+		}
+
+		// 전체 대기 후에도 제출을 재개할 수 있으며 마지막 제출의 정리는 소멸자가 맡는다.
+		for (int frame = 0; frame < 8; ++frame)
+		{
+			if (!renderer.Render())
+			{
+				return 1;
+			}
 		}
 	}
 
@@ -237,7 +258,7 @@ int main()
 	}
 
 	std::printf(
-		"24 frames, 8 resize requests, destruction: errors=%u warnings=%u\n",
+		"136 frames, 8 resize requests, repeated flush, resume, destruction: errors=%u warnings=%u\n",
 		errors,
 		warnings);
 	return errors == 0 && warnings == 0 ? 0 : 1;

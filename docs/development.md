@@ -20,11 +20,12 @@ Rniman Engine을 Convention의 주요 적용·검증 프로젝트로 삼아 함�
 
 ### 확인·반영 상태
 
-- **마지막 확인:** 2026-09-15 커밋 전 검토에서 로컬 Convention HEAD `7b31c7bb593c872eaeb7a56cf3e70817b6ea51c5`의 채택 기준·상호 반영 절차·포맷·프로젝트 문서·커밋 메시지 규칙을 확인했다. 미커밋 변경은 없었다. 배포 사이트와 원격 최신 상태는 이번에 확인하지 않았다.
+- **마지막 확인:** 2026-09-17 로컬 `D:/Docs/Convention` HEAD `7b31c7bb593c872eaeb7a56cf3e70817b6ea51c5`의 채택 기준·상호 반영 절차·명명·포맷·초기화·소유권·함수·프로젝트 문서를 확인했다. 작업 전 미커밋 변경은 없었다. 배포 사이트는 접근 오류였고 GitHub 조회는 일부 과거 내용만 반환하여 원격 최신 상태는 확정하지 못했다. 이번 적용 근거는 확인한 로컬 위키이며 과거 커밋을 고정 기준으로 삼지 않는다.
 - **기존 적용 기록:** `9e2765c194991072378328d35d7f054fb361fa08`은 기존 코드·설정에서 사용한 컨벤션 버전이다. 이번 문서 변경이 이후 규칙 전체의 코드 반영이나 재검증을 의미하지 않는다.
 - **이번 반영:** 초기 구현 당시 로컬 Convention `75bd213835f2b22164e26e430c7e3bed5e507e41`의 채택 기준과 관련 C++ 문서를 확인하여 D3D12Renderer·창 루프·테스트에 적용했다. 확정한 네 가지 초기화 선택과 구현 단계의 시험 적용 사항을 [위키 프로젝트 문서](https://rniman.github.io/convention/projects/rniman-engine/#d3d12-초기-구현-선택)에 로컬 반영했다. 후속 가독성 정리에서는 위키 포맷 문서에 작업별 실패 처리·인자 배치 규칙을 반영했다.
 - **프로젝트 전용 예외·시험 적용:** 네 가지 선택은 사용자 확정 범위에 한해 채택했다. ComPtr·Event 소유, bool 반환과 API/HRESULT 보고, Debug 레이어 필수, VSync·두 백 버퍼는 이번 Sandbox의 시험 적용이다. 위키 프로젝트 문서 전체를 채택한 것으로 취급하지 않는다.
-- **후속 반영:** Convention의 초기 구현 선택·가독성 규칙은 위 로컬 HEAD에 커밋된 상태이며, 엔진 변경도 목적별 로컬 커밋으로 정리한다. 원격 최신 상태·위키 배포는 확인하지 않았으므로 위키 URL에는 아직 새 절이 없을 수 있다. 원격 반영 후 양쪽 적용 상태를 갱신한다. 화면 검증 후 Fence 개선 전환 조건을 다시 평가한다.
+- **프레임 동기화 전환:** 2026-09-17 사용자 요청으로 프레임별 Allocator·Fence 값과 재사용 시 대기를 구현했다. 기존 화면 검증 선행 조건은 이번 요청 범위에서 변경했으며 미검증 항목은 완료로 간주하지 않는다. 두 슬롯의 구조체·단일 Command List·공유 Fence/Event는 현재 Sandbox에 한정한 구현 선택이다. 공통 컨벤션·도구 설정은 개정하지 않았다.
+- **위키 반영·후속:** 2026-09-17 [프레임 동기화 전환](https://rniman.github.io/convention/projects/rniman-engine/#프레임-동기화-전환)과 baseline 변경 기록을 로컬 Convention의 두 문서에 반영했다. 초기 매 프레임 대기는 대체된 이력으로 남겼고 공통 채택 규칙은 변경하지 않았다. 위키 변경은 로컬 미커밋 상태이며, 양쪽 저장소의 푸시·배포는 수행하지 않았다. 원격 최신 상태·위키 배포는 확정하지 못했으므로 원격 반영 후 양쪽 적용 상태를 갱신한다.
 
 ## 검증과 문서
 
@@ -87,15 +88,21 @@ Visual Studio 프로젝트를 직접 관리하며, CMake는 필요해질 때 전
 
 [D3D12Renderer.cpp](../Sandbox/D3D12Renderer.cpp)는 고성능 순서의 하드웨어 중 Feature Level 11_0 지원 장치를 선택한다. 선택·실패 후보는 디버그 출력으로 기록하며 WARP는 사용하지 않는다. Debug는 장치 생성 전에 디버그 레이어를 켜고 Graphics Tools가 없으면 실패한다.
 
-초기화 순서는 Factory·Adapter·Device → Queue → Swap Chain → RTV·백 버퍼 → Allocator·Command List → Fence·Event다. Render는 PRESENT → RENDER_TARGET 전이, 어두운 파란색 지우기, PRESENT 복귀, 명령 제출, Present(1, 0), Fence 대기를 수행한다. 셰이더·Root Signature·PSO는 아직 필요하지 않다.
+초기화 순서는 Factory·Adapter·Device → Queue → Swap Chain → RTV·백 버퍼 → 프레임별 Allocator·단일 Command List → Fence·Event다. Render는 현재 백 버퍼의 이전 제출 완료 확인 → Allocator·Command List Reset → PRESENT에서 RENDER_TARGET 전이 → 어두운 파란색 지우기 → PRESENT 복귀 → 명령 제출 → Present(1, 0) → Fence Signal과 해당 프레임 값 기록 순서다. 셰이더·Root Signature·PSO는 아직 필요하지 않다.
 
 Resize는 GPU 완료 확인 → 백 버퍼 참조 해제 → ResizeBuffers → 백 버퍼·RTV 재생성 순서다. 동일 크기와 0 크기 요청은 무시한다. COM 자원은 ComPtr로, Fence Event는 렌더러 소멸자에서 정리한다. 실패 시 API·HRESULT·Device removed reason을 표시하고 앱을 종료한다. 장치 손실 자동 복구는 구현하지 않았다.
 
-### Fence 후속 개선 — 필수 추적
+### 프레임별 Fence 동기화
 
-현재 매 프레임 GPU 완료를 기다려 하나의 Allocator를 안전하게 재사용한다. 초기 동기화와 수명 검증을 단순화하기 위한 사용자 선택이며 CPU·GPU 병렬 실행을 제한한다.
+2026-09-17 사용자 요청으로 매 프레임 전체 대기에서 프레임 자원 재사용 시 대기로 전환했다. 기존 선택은 초기 수명 검증을 단순화하기 위한 것이었다. 화면 검증을 모두 끝낸 뒤 전환한다는 이전 조건은 이번 요청에 따라 변경했고, 아래 미검증 범위는 유지한다.
 
-**전환 조건:** 기본 화면 출력·실제 창 리사이즈·종료 검증을 마친 뒤 프레임별 Command Allocator와 Fence 값을 도입한다. 해당 프레임 자원을 다시 사용할 때만 기다리도록 변경하고, resize·종료에는 필요한 전체 GPU 완료 대기를 유지한다. 화면 검증이 남아 있으므로 이번에는 전환하지 않았다. Render의 대기 위치에도 이유·제약·완료 조건을 TODO로 기록했다. 성능 향상 수치는 측정 전 주장하지 않는다.
+- `mFrames`의 두 `FrameResources`는 각 백 버퍼에 대응하며 Allocator와 마지막 제출의 Fence 값을 소유한다. `GetCurrentBackBufferIndex()`로 고른 슬롯은 `WaitForFence(frame.fenceValue)` 성공 후에만 Reset한다. 초기 값 0은 제출 이력이 없음을 뜻한다.
+- 하나의 Command List는 제출 후 다음 슬롯의 Allocator로 재기록한다. GPU가 사용하는 기록 메모리는 슬롯별 Allocator가 유지한다. Fence 값은 렌더러 전체에서 단조 증가하며 Present 이후에도 제출 당시 슬롯에 저장한다.
+- `WaitForFence`는 완료 값을 먼저 확인하여 미완료일 때만 Event를 기다린다. 완료 값이 `UINT64_MAX`이면 장치 제거를 보고한다. 프레임 하나의 완료는 다른 제출까지 모두 완료했다는 뜻이 아니므로 전체 미완료 상태를 지우지 않는다.
+- `WaitForGpu`는 Queue 끝에 새 Signal을 넣어 전체 제출 완료를 확인한다. 실제 크기가 바뀌는 Resize, 앱 종료, 미완료 작업이 있는 소멸자에서 사용한다. Signal·Present 실패 후에도 소멸자가 전체 대기를 시도하는 경로를 유지한다.
+- Resize 이후에도 Fence 카운터와 슬롯의 값을 유지한다. 백 버퍼를 해제하기 전에 전체 대기를 끝냈으므로 기존 값은 이미 완료된 하한이며 다음 제출에서 교체된다.
+
+현재 단일 UI 스레드·단일 Direct Queue·두 백 버퍼 범위의 구현이다. 재사용 대기와 전체 대기의 공통 부분만 렌더러 내부 `WaitForFence`로 묶었으며 별도 범용 동기화 시스템은 도입하지 않았다. VSync와 DXGI의 Present 대기는 계속 존재하며 성능 향상 수치는 측정하지 않았다.
 
 ### 자동 검증
 
@@ -133,3 +140,12 @@ Microsoft의 [Adapter 우선순위 열거](https://learn.microsoft.com/en-us/win
 정리 후 검증: 솔루션 x64 Debug·Release 빌드와 각 RendererSmoke 실행 성공(종료 코드 0, 24프레임·8회 요청, 오류·경고 0). Main·헤더·테스트의 토큰 순서가 변경 전과 같음을 확인했다. 렌더러는 실패 처리 분리와 대기 오류의 지역 변수 도입을 검토했다. 실제 창 시각 확인·F5는 이번 포맷 정리에서 재수행하지 않았다.
 
 2026-09-15 커밋 전 재검증: 솔루션 x64 Debug·Release 빌드 및 두 RendererSmoke 실행 성공(각 종료 코드 0, 24프레임·8회 요청, D3D12 오류·경고 0). 실제 창 조작·시각 확인·F5는 재수행하지 않았으며 위 미검증 범위를 유지한다. 프로젝트 파일 두 개의 누락된 마지막 개행을 보완했다.
+
+### 2026-09-17 프레임 동기화 검증
+
+- 솔루션 x64 Debug·Release 빌드 성공. 샌드박스의 기존 `obj` 접근 거부 이후 샌드박스 밖에서 빌드했으며 프로젝트 설정으로 우회하지 않았다.
+- 두 구성의 RendererSmoke 종료 코드 0. 각각 136프레임·8회 크기 변경 요청, 제출 전 대기, 반복 전체 대기, 대기 후 렌더링 재개, 마지막 제출 후 소멸자 정리를 검사했다. D3D12 InfoQueue 오류·경고는 각각 0건이다.
+- 실제 Debug·Release Sandbox를 실행하여 파란색 화면과 Alt+F4 이후 프로세스 종료를 확인했다. UI 실행의 종료 코드는 수집하지 못했으므로 smoke test의 종료 코드와 구분한다. Debug에서는 최대화·복원과 최소화 후 복원된 파란색 화면도 확인했다.
+- 미검증: 연속 드래그 리사이즈, Visual Studio F5, 강제 Signal·Present 실패와 장치 손실, 전체 live-object 누수 검사, 성능 비교. 시각 확인 시 Sandbox의 InfoQueue를 별도로 수집하지 않았으며 오류·경고 0건은 위 smoke test 범위다. 가벼운 clear 작업의 테스트가 장시간 GPU 부하나 모든 대기 분기의 강제 실행을 보장하지 않는다.
+
+동기화 API 근거(2026-09-17 확인): Microsoft의 [Command Allocator Reset](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12commandallocator-reset)과 [Command List Reset](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12graphicscommandlist-reset). 전자는 해당 Allocator를 쓰는 GPU 실행 완료가 필요하며, 후자는 제출된 List의 실행 중에도 재기록할 수 있다.

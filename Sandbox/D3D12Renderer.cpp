@@ -127,9 +127,7 @@ bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height)
 
 	if (!mDevice)
 	{
-		return CheckResult(
-			DXGI_ERROR_UNSUPPORTED,
-			L"No hardware adapter supports D3D12 feature level 11_0 (WARP disabled)");
+		return CheckResult(DXGI_ERROR_UNSUPPORTED, L"No hardware adapter supports D3D12 feature level 11_0 (WARP disabled)");
 	}
 
 	D3D12_COMMAND_QUEUE_DESC queueDescription{};
@@ -192,20 +190,21 @@ bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height)
 		return false;
 	}
 
-	if (!CheckResult(
-		mDevice->CreateCommandAllocator(
-			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			IID_PPV_ARGS(&mCommandAllocators)),
-		L"CreateCommandAllocator"))
+	for (auto& frame : mFrames)
 	{
-		return false;
+		if (!CheckResult(
+			mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.commandAllocator)),
+			L"CreateCommandAllocator"))
+		{
+			return false;
+		}
 	}
 
 	if (!CheckResult(
 		mDevice->CreateCommandList(
 			0,
 			D3D12_COMMAND_LIST_TYPE_DIRECT,
-			mCommandAllocators.Get(),
+			mFrames[0].commandAllocator.Get(),
 			nullptr,
 			IID_PPV_ARGS(&mCommandList)),
 		L"CreateCommandList"))
@@ -258,17 +257,25 @@ bool D3D12Renderer::CreateBackBuffers()
 
 bool D3D12Renderer::Render()
 {
-	if (!CheckResult(mCommandAllocators->Reset(), L"CommandAllocator::Reset"))
-	{
-		return false;
-	}
-
-	if (!CheckResult(mCommandList->Reset(mCommandAllocators.Get(), nullptr), L"CommandList::Reset"))
-	{
-		return false;
-	}
-
 	UINT index = mSwapChain->GetCurrentBackBufferIndex();
+	auto& frame = mFrames[index];
+	// 같은 백 버퍼를 다시 사용할 때만 이전 기록 메모리의 GPU 사용 완료를 확인한다.
+	if (!WaitForFence(frame.fenceValue))
+	{
+		return false;
+	}
+
+	if (!CheckResult(frame.commandAllocator->Reset(), L"CommandAllocator::Reset"))
+	{
+		return false;
+	}
+
+	// Command List는 제출 후 재기록할 수 있지만 Allocator의 메모리는 완료 전 재사용할 수 없다.
+	if (!CheckResult(mCommandList->Reset(frame.commandAllocator.Get(), nullptr), L"CommandList::Reset"))
+	{
+		return false;
+	}
+
 	D3D12_RESOURCE_BARRIER barrier{};
 	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 	barrier.Transition.pResource = mBackBuffers[index].Get();
@@ -297,16 +304,15 @@ bool D3D12Renderer::Render()
 
 	HRESULT presentResult = mSwapChain->Present(1, 0);
 
-	// 초기 동기화 검증을 위해 매 프레임 대기한다. CPU·GPU 병렬 실행이 제한된다.
-	// TODO: 화면 출력·리사이즈·종료 검증 후 프레임별 Allocator와 Fence 값을 도입하고,
-	// 해당 프레임 자원을 재사용할 때만 대기하도록 전환한다. docs/development.md 참조.
-	bool completed = WaitForGpu();
-	if (!CheckResult(presentResult, L"SwapChain::Present"))
+	// Present 이후에도 제출한 프레임의 인덱스에 기록한다. 실패 시 소멸자가 전체 대기를 시도한다.
+	const UINT64 target = ++mFenceValue;
+	if (!CheckResult(mCommandQueue->Signal(mFence.Get(), target), L"CommandQueue::Signal(frame)"))
 	{
 		return false;
 	}
 
-	if (!completed)
+	frame.fenceValue = target;
+	if (!CheckResult(presentResult, L"SwapChain::Present"))
 	{
 		return false;
 	}
@@ -333,12 +339,21 @@ bool D3D12Renderer::WaitForGpu()
 		return false;
 	}
 
+	if (!WaitForFence(target))
+	{
+		return false;
+	}
+
+	mGpuWorkPending = false;
+	return true;
+}
+
+bool D3D12Renderer::WaitForFence(UINT64 target)
+{
 	UINT64 completed = mFence->GetCompletedValue();
 	if (completed < target)
 	{
-		if (!CheckResult(
-			mFence->SetEventOnCompletion(target, mFenceEvent),
-			L"Fence::SetEventOnCompletion"))
+		if (!CheckResult(mFence->SetEventOnCompletion(target, mFenceEvent), L"Fence::SetEventOnCompletion"))
 		{
 			return false;
 		}
@@ -364,8 +379,6 @@ bool D3D12Renderer::WaitForGpu()
 	{
 		return CheckResult(E_FAIL, L"Fence completion value");
 	}
-
-	mGpuWorkPending = false;
 
 	return true;
 }
