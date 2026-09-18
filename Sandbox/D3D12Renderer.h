@@ -8,7 +8,7 @@
 
 #include <array>
 
-/// @brief UI 스레드에서 사용하는 화면 지우기 렌더러. 창은 앱이 소유한다.
+/// @brief UI 스레드에서 사용하는 삼각형 렌더러. 창은 앱이 소유한다.
 /// @note Initialize는 한 번만 호출한다. 실패 후에는 재사용하지 않고 파괴한다.
 class D3D12Renderer
 {
@@ -40,6 +40,8 @@ private:
 	};
 
 	[[nodiscard]] bool CreateBackBuffers();
+	[[nodiscard]] bool CreateTrianglePipeline();
+	[[nodiscard]] bool CreateTriangleVertices();
 	[[nodiscard]] bool WaitForFence(UINT64 target);
 	[[nodiscard]] bool CheckResult(HRESULT result, const wchar_t* operation) const;
 
@@ -56,6 +58,11 @@ private:
 	// 백 버퍼 인덱스로 선택하며, 기록 메모리는 해당 제출의 Fence 완료까지 유지한다.
 	std::array<FrameResources, BUFFER_COUNT> mFrames;
 	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;
+
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> mPipelineState;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mVertexBuffer;
+	D3D12_VERTEX_BUFFER_VIEW mVertexBufferView{};
 
 	Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
 	HANDLE mFenceEvent = nullptr;

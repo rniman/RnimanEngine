@@ -4,13 +4,36 @@
 #include <Windows.h>
 #include <d3d12.h>
 #include <d3d12sdklayers.h>
+#include <d3dcompiler.h>
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
 #include <cwchar>
+#include <filesystem>
+#include <iterator>
 #include <limits>
+#include <string>
 
 using Microsoft::WRL::ComPtr;
+
+namespace
+{
+	struct Vertex
+	{
+		float position[3];
+		float color[4];
+	};
+
+	constexpr DXGI_FORMAT BACK_BUFFER_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
+	constexpr Vertex TRIANGLE_VERTICES[] = {
+		{ { 0.0f, 0.6f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+		{ { 0.6f, -0.6f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+		{ { -0.6f, -0.6f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
+	};
+}
 
 D3D12Renderer::~D3D12Renderer()
 {
@@ -142,7 +165,7 @@ bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height)
 	DXGI_SWAP_CHAIN_DESC1 swapDescription{};
 	swapDescription.Width = width;
 	swapDescription.Height = height;
-	swapDescription.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	swapDescription.Format = BACK_BUFFER_FORMAT;
 	swapDescription.SampleDesc.Count = 1;
 	swapDescription.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	swapDescription.BufferCount = BUFFER_COUNT;
@@ -233,6 +256,164 @@ bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height)
 	mWidth = width;
 	mHeight = height;
 
+	if (!CreateTrianglePipeline())
+	{
+		return false;
+	}
+
+	if (!CreateTriangleVertices())
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool D3D12Renderer::CreateTrianglePipeline()
+{
+	// 작업 디렉터리와 무관하게 실행 파일과 함께 배치된 CSO를 읽는다.
+	std::wstring executablePath(32768, L'\0');
+	DWORD length = GetModuleFileNameW(nullptr, executablePath.data(), static_cast<DWORD>(executablePath.size()));
+	if (length == 0)
+	{
+		return CheckResult(HRESULT_FROM_WIN32(GetLastError()), L"GetModuleFileNameW");
+	}
+
+	if (length >= executablePath.size())
+	{
+		return CheckResult(HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER), L"GetModuleFileNameW(path too long)");
+	}
+
+	executablePath.resize(length);
+	const auto shaderDirectory = std::filesystem::path(executablePath).parent_path() / L"Shaders";
+	const auto vertexPath = shaderDirectory / L"TriangleVS.cso";
+	const auto pixelPath = shaderDirectory / L"TrianglePS.cso";
+	ComPtr<ID3DBlob> vertexShader;
+	ComPtr<ID3DBlob> pixelShader;
+	const std::wstring vertexOperation = L"D3DReadFileToBlob: " + vertexPath.wstring();
+	if (!CheckResult(D3DReadFileToBlob(vertexPath.c_str(), &vertexShader), vertexOperation.c_str()))
+	{
+		return false;
+	}
+
+	const std::wstring pixelOperation = L"D3DReadFileToBlob: " + pixelPath.wstring();
+	if (!CheckResult(D3DReadFileToBlob(pixelPath.c_str(), &pixelShader), pixelOperation.c_str()))
+	{
+		return false;
+	}
+
+	// 정점 입력만 사용하므로 Descriptor Table이나 상수 매개변수는 필요하지 않다.
+	D3D12_ROOT_SIGNATURE_DESC rootDescription{};
+	rootDescription.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+	ComPtr<ID3DBlob> serializedRoot;
+	ComPtr<ID3DBlob> errors;
+	HRESULT result = D3D12SerializeRootSignature(
+		&rootDescription,
+		D3D_ROOT_SIGNATURE_VERSION_1,
+		&serializedRoot,
+		&errors);
+	if (errors)
+	{
+		OutputDebugStringA(static_cast<const char*>(errors->GetBufferPointer()));
+	}
+
+	if (!CheckResult(result, L"D3D12SerializeRootSignature"))
+	{
+		return false;
+	}
+
+	if (!CheckResult(
+		mDevice->CreateRootSignature(
+			0,
+			serializedRoot->GetBufferPointer(),
+			serializedRoot->GetBufferSize(),
+			IID_PPV_ARGS(&mRootSignature)),
+		L"CreateRootSignature"))
+	{
+		return false;
+	}
+
+	constexpr D3D12_INPUT_ELEMENT_DESC INPUT_ELEMENTS[] = {
+		{
+			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+			0, offsetof(Vertex, position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+		},
+		{
+			"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+			0, offsetof(Vertex, color), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+		}
+	};
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline{};
+	pipeline.pRootSignature = mRootSignature.Get();
+	pipeline.VS = { vertexShader->GetBufferPointer(), vertexShader->GetBufferSize() };
+	pipeline.PS = { pixelShader->GetBufferPointer(), pixelShader->GetBufferSize() };
+	pipeline.InputLayout = { INPUT_ELEMENTS, static_cast<UINT>(std::size(INPUT_ELEMENTS)) };
+	pipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	pipeline.SampleMask = std::numeric_limits<UINT>::max();
+	pipeline.SampleDesc.Count = 1;
+	pipeline.NumRenderTargets = 1;
+	pipeline.RTVFormats[0] = BACK_BUFFER_FORMAT;
+	pipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	pipeline.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
+	pipeline.RasterizerState.DepthClipEnable = TRUE;
+	pipeline.DepthStencilState.DepthEnable = FALSE;
+	pipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	pipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	pipeline.DepthStencilState.StencilEnable = FALSE;
+
+	auto& blend = pipeline.BlendState.RenderTarget[0];
+	blend.SrcBlend = D3D12_BLEND_ONE;
+	blend.DestBlend = D3D12_BLEND_ZERO;
+	blend.BlendOp = D3D12_BLEND_OP_ADD;
+	blend.SrcBlendAlpha = D3D12_BLEND_ONE;
+	blend.DestBlendAlpha = D3D12_BLEND_ZERO;
+	blend.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	blend.LogicOp = D3D12_LOGIC_OP_NOOP;
+	blend.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	return CheckResult(
+		mDevice->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(&mPipelineState)),
+		L"CreateGraphicsPipelineState(triangle)");
+}
+
+bool D3D12Renderer::CreateTriangleVertices()
+{
+	// 세 정점의 고정 데모만 Upload Heap에서 직접 읽는다. 업로드 후 다시 쓰지 않는다.
+	D3D12_HEAP_PROPERTIES heap{};
+	heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+	D3D12_RESOURCE_DESC buffer{};
+	buffer.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	buffer.Width = sizeof(TRIANGLE_VERTICES);
+	buffer.Height = 1;
+	buffer.DepthOrArraySize = 1;
+	buffer.MipLevels = 1;
+	buffer.SampleDesc.Count = 1;
+	buffer.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	if (!CheckResult(
+		mDevice->CreateCommittedResource(
+			&heap,
+			D3D12_HEAP_FLAG_NONE,
+			&buffer,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&mVertexBuffer)),
+		L"CreateCommittedResource(triangle vertices)"))
+	{
+		return false;
+	}
+
+	void* mapped = nullptr;
+	const D3D12_RANGE readRange{ 0, 0 };
+	if (!CheckResult(mVertexBuffer->Map(0, &readRange, &mapped), L"VertexBuffer::Map"))
+	{
+		return false;
+	}
+
+	std::memcpy(mapped, TRIANGLE_VERTICES, sizeof(TRIANGLE_VERTICES));
+	const D3D12_RANGE writtenRange{ 0, sizeof(TRIANGLE_VERTICES) };
+	mVertexBuffer->Unmap(0, &writtenRange);
+	mVertexBufferView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
+	mVertexBufferView.SizeInBytes = sizeof(TRIANGLE_VERTICES);
+	mVertexBufferView.StrideInBytes = sizeof(Vertex);
 	return true;
 }
 
@@ -271,7 +452,7 @@ bool D3D12Renderer::Render()
 	}
 
 	// Command List는 제출 후 재기록할 수 있지만 Allocator의 메모리는 완료 전 재사용할 수 없다.
-	if (!CheckResult(mCommandList->Reset(frame.commandAllocator.Get(), nullptr), L"CommandList::Reset"))
+	if (!CheckResult(mCommandList->Reset(frame.commandAllocator.Get(), mPipelineState.Get()), L"CommandList::Reset"))
 	{
 		return false;
 	}
@@ -288,6 +469,22 @@ bool D3D12Renderer::Render()
 	handle.ptr += static_cast<SIZE_T>(index) * mRtvStride;
 	constexpr float CLEAR_COLOR[] = { 0.08f, 0.16f, 0.28f, 1.0f };
 	mCommandList->ClearRenderTargetView(handle, CLEAR_COLOR, 0, nullptr);
+
+	// 중앙 정사각형 Viewport로 창의 종횡비가 달라져도 삼각형 비율을 유지한다.
+	const float side = static_cast<float>(std::min(mWidth, mHeight));
+	const D3D12_VIEWPORT viewport{
+		(static_cast<float>(mWidth) - side) * 0.5f, (static_cast<float>(mHeight) - side) * 0.5f,
+		side, side,
+		0.0f, 1.0f
+	};
+	const D3D12_RECT scissor{ 0, 0, static_cast<LONG>(mWidth), static_cast<LONG>(mHeight) };
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	mCommandList->RSSetViewports(1, &viewport);
+	mCommandList->RSSetScissorRects(1, &scissor);
+	mCommandList->OMSetRenderTargets(1, &handle, FALSE, nullptr);
+	mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	mCommandList->IASetVertexBuffers(0, 1, &mVertexBufferView);
+	mCommandList->DrawInstanced(static_cast<UINT>(std::size(TRIANGLE_VERTICES)), 1, 0, 0);
 
 	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -405,7 +602,7 @@ bool D3D12Renderer::Resize(UINT width, UINT height)
 			BUFFER_COUNT,
 			width,
 			height,
-			DXGI_FORMAT_R8G8B8A8_UNORM,
+			BACK_BUFFER_FORMAT,
 			0),
 		L"SwapChain::ResizeBuffers"))
 	{

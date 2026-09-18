@@ -1,0 +1,23 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Sandbox and RendererSmoke compile the same sources into separate outputs. -->
+  <ItemDefinitionGroup>
+    <FxCompile>
+      <ShaderModel>5.0</ShaderModel>
+      <EntryPointName>Main</EntryPointName>
+      <ObjectFileOutput>$(OutDir)Shaders\%(Filename).cso</ObjectFileOutput>
+      <EnableDebuggingInformation Condition="'$(Configuration)'=='Debug'">true</EnableDebuggingInformation>
+      <DisableOptimizations Condition="'$(Configuration)'=='Debug'">true</DisableOptimizations>
+    </FxCompile>
+    <Link>
+      <AdditionalDependencies>d3dcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <FxCompile Include="$(EngineRoot)Shaders\Samples\Sandbox\TriangleVS.hlsl">
+      <ShaderType>Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="$(EngineRoot)Shaders\Samples\Sandbox\TrianglePS.hlsl">
+      <ShaderType>Pixel</ShaderType>
+    </FxCompile>
+  </ItemGroup>
+</Project>
