@@ -4,11 +4,11 @@ D3D12 기반의 미니 게임 엔진. 장면 구성, 입력, 게임 로직, 렌�
 
 ## 현재 상태
 
-2026-09-17 기준, Sandbox의 Win32 창·PCH와 D3D12 초기화·화면 지우기·Present를 구현했다. 앱이 창과 렌더러를 각각 소유하며, 고성능 하드웨어 GPU 우선 선택·프레임별 Command Allocator와 Fence 값·프레임 경계 리사이즈를 적용했다. 프레임 자원 재사용 시에만 해당 제출의 완료를 기다리고, 리사이즈·종료에는 전체 GPU 완료 대기를 유지한다. 초기 화면은 어두운 파란색이다.
+2026-09-18 기준, Sandbox에서 D3D12로 RGB 정점 색상을 보간한 삼각형을 출력한다. 빌드 시 컴파일한 Vertex·Pixel Shader, Root Signature, PSO, Vertex Buffer를 연결했다. 어두운 파란색 배경 중앙에 그리며 정사각형 Viewport로 리사이즈 후에도 삼각형 비율을 유지한다. 고성능 하드웨어 GPU 선택, 프레임별 Command Allocator·Fence와 리사이즈·종료의 전체 GPU 대기는 유지한다.
 
-x64 Debug·Release 빌드와 숨김 테스트 창의 렌더러 smoke test가 성공했다. 각 구성에서 136프레임·8번의 크기 변경 요청, 반복 전체 대기·렌더링 재개와 렌더러 파괴를 검사했으며 D3D12 디버그 오류·경고는 0건이었다. 실제 두 구성의 파란색 화면·Alt+F4 종료와 Debug의 최대화·복원·최소화 후 복원을 확인했다. 연속 드래그 리사이즈·Visual Studio F5·성능 측정은 미검증이다. 상세 범위는 [D3D12 검증 기록](docs/development.md#d3d12-화면-출력과-검증)을 따른다.
+x64 Debug·Release 빌드와 각 136프레임·8회 크기 변경 요청의 smoke test가 성공했으며 D3D12 오류·경고는 0건이었다. 실제 두 구성의 삼각형 출력·Alt+F4 종료, Debug의 최대화·복원·최소화 후 복원을 확인했다. 저장소 밖 작업 디렉터리에서의 셰이더 로딩과 CSO 누락 오류도 확인했다. 연속 드래그 리사이즈·Visual Studio F5·성능 측정은 미검증이다. 상세 범위는 [삼각형 검증 기록](docs/development.md#삼각형-출력과-검증)을 따른다.
 
-삼각형 렌더링, ECS, Unity 익스포터·로더, PBR은 아직 구현하지 않았다. 다음 단계는 삼각형 출력과 남은 창 동작 검증이다. 첫 마일스톤은 메시·텍스처·카메라·기본 조명을 사용하는 데모를 문서대로 다시 실행할 수 있는 상태다.
+ECS, Unity 익스포터·로더, PBR은 아직 구현하지 않았다. 다음 단계는 직접 정의한 메시와 Transform·카메라를 연결하고 남은 창 동작을 검증하는 것이다. 첫 마일스톤은 메시·텍스처·카메라·기본 조명을 사용하는 데모를 문서대로 다시 실행할 수 있는 상태다.
 
 ## 빌드와 실행
 
@@ -27,7 +27,7 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Debug -p:Platfor
 MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platform=x64
 ```
 
-실행 파일은 `bin/Sandbox/<구성>/Sandbox.exe`, 중간 산출물은 `obj/Sandbox/<구성>/`에 생성된다. EXE 직접 실행도 가능하며, 디버거 작업 디렉터리는 `$(OutDir)`다. `bin/`과 `obj/`는 Git에서 제외한다.
+실행 파일은 `bin/Sandbox/<구성>/Sandbox.exe`, 중간 산출물은 `obj/Sandbox/<구성>/`에 생성된다. SDK의 FXC가 `Shaders/Samples/Sandbox/`의 HLSL을 Shader Model 5.0으로 컴파일하여 EXE 옆 `Shaders/TriangleVS.cso`와 `Shaders/TrianglePS.cso`를 만든다. **실행 파일을 옮길 때는 이 `Shaders` 폴더도 함께 복사한다.** 로더는 작업 디렉터리와 무관하게 EXE 위치를 기준으로 CSO를 찾으며, 누락되면 경로와 HRESULT를 표시하고 종료한다. 디버거 작업 디렉터리는 `$(OutDir)`다. `bin/`과 `obj/`는 Git에서 제외한다.
 
 ## 코드와 문서 안내
 
