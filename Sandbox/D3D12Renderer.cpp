@@ -2,20 +2,22 @@
 #include "D3D12Renderer.h"
 
 #include <Windows.h>
+#include <DirectXMath.h>
 #include <d3d12.h>
 #include <d3d12sdklayers.h>
 #include <d3dcompiler.h>
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
-#include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <cwchar>
 #include <filesystem>
 #include <iterator>
 #include <limits>
 #include <string>
+#include <utility>
 
 using Microsoft::WRL::ComPtr;
 
@@ -28,10 +30,26 @@ namespace
 	};
 
 	constexpr DXGI_FORMAT BACK_BUFFER_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
-	constexpr Vertex TRIANGLE_VERTICES[] = {
-		{ { 0.0f, 0.6f, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-		{ { 0.6f, -0.6f, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-		{ { -0.6f, -0.6f, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
+	constexpr DXGI_FORMAT DEPTH_BUFFER_FORMAT = DXGI_FORMAT_D32_FLOAT;
+	constexpr Vertex CUBE_VERTICES[] = {
+		{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } },
+		{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+		{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 1.0f, 0.0f, 1.0f } },
+		{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+		{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
+		{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f, 1.0f } },
+		{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f } },
+		{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f, 1.0f } }
+	};
+
+	// 외부에서 볼 때 화면에서 시계 방향인 면을 앞면으로 사용한다.
+	constexpr std::uint16_t CUBE_INDICES[] = {
+		0, 1, 2, 0, 2, 3,
+		4, 6, 5, 4, 7, 6,
+		4, 5, 1, 4, 1, 0,
+		3, 2, 6, 3, 6, 7,
+		1, 5, 6, 1, 6, 2,
+		4, 0, 3, 4, 3, 7
 	};
 }
 
@@ -213,8 +231,23 @@ bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height)
 		return false;
 	}
 
+	heapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	heapDescription.NumDescriptors = 1;
+	if (!CheckResult(
+		mDevice->CreateDescriptorHeap(&heapDescription, IID_PPV_ARGS(&mDsvHeap)),
+		L"CreateDescriptorHeap(DSV)"))
+	{
+		return false;
+	}
+
 	for (auto& frame : mFrames)
 	{
+		// 루트 CBV도 GPU 주소가 256바이트 경계에 있어야 한다.
+		if (!CreateUploadBuffer(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, frame.constantBuffer))
+		{
+			return false;
+		}
+
 		if (!CheckResult(
 			mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.commandAllocator)),
 			L"CreateCommandAllocator"))
@@ -256,12 +289,17 @@ bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height)
 	mWidth = width;
 	mHeight = height;
 
-	if (!CreateTrianglePipeline())
+	if (!CreateDepthBuffer())
 	{
 		return false;
 	}
 
-	if (!CreateTriangleVertices())
+	if (!CreateCubePipeline())
+	{
+		return false;
+	}
+
+	if (!CreateCubeGeometry())
 	{
 		return false;
 	}
@@ -269,7 +307,7 @@ bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height)
 	return true;
 }
 
-bool D3D12Renderer::CreateTrianglePipeline()
+bool D3D12Renderer::CreateCubePipeline()
 {
 	// 작업 디렉터리와 무관하게 실행 파일과 함께 배치된 CSO를 읽는다.
 	std::wstring executablePath(32768, L'\0');
@@ -286,8 +324,8 @@ bool D3D12Renderer::CreateTrianglePipeline()
 
 	executablePath.resize(length);
 	const auto shaderDirectory = std::filesystem::path(executablePath).parent_path() / L"Shaders";
-	const auto vertexPath = shaderDirectory / L"TriangleVS.cso";
-	const auto pixelPath = shaderDirectory / L"TrianglePS.cso";
+	const auto vertexPath = shaderDirectory / L"CubeVS.cso";
+	const auto pixelPath = shaderDirectory / L"CubePS.cso";
 	ComPtr<ID3DBlob> vertexShader;
 	ComPtr<ID3DBlob> pixelShader;
 	const std::wstring vertexOperation = L"D3DReadFileToBlob: " + vertexPath.wstring();
@@ -302,8 +340,13 @@ bool D3D12Renderer::CreateTrianglePipeline()
 		return false;
 	}
 
-	// 정점 입력만 사용하므로 Descriptor Table이나 상수 매개변수는 필요하지 않다.
+	D3D12_ROOT_PARAMETER transformParameter{};
+	transformParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	transformParameter.Descriptor.ShaderRegister = 0;
+	transformParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 	D3D12_ROOT_SIGNATURE_DESC rootDescription{};
+	rootDescription.NumParameters = 1;
+	rootDescription.pParameters = &transformParameter;
 	rootDescription.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	ComPtr<ID3DBlob> serializedRoot;
 	ComPtr<ID3DBlob> errors;
@@ -356,9 +399,10 @@ bool D3D12Renderer::CreateTrianglePipeline()
 	pipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 	pipeline.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 	pipeline.RasterizerState.DepthClipEnable = TRUE;
-	pipeline.DepthStencilState.DepthEnable = FALSE;
-	pipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-	pipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	pipeline.DSVFormat = DEPTH_BUFFER_FORMAT;
+	pipeline.DepthStencilState.DepthEnable = TRUE;
+	pipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	pipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 	pipeline.DepthStencilState.StencilEnable = FALSE;
 
 	auto& blend = pipeline.BlendState.RenderTarget[0];
@@ -372,22 +416,22 @@ bool D3D12Renderer::CreateTrianglePipeline()
 	blend.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 	return CheckResult(
 		mDevice->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(&mPipelineState)),
-		L"CreateGraphicsPipelineState(triangle)");
+		L"CreateGraphicsPipelineState(cube)");
 }
 
-bool D3D12Renderer::CreateTriangleVertices()
+bool D3D12Renderer::CreateUploadBuffer(UINT64 size, ComPtr<ID3D12Resource>& resource)
 {
-	// 세 정점의 고정 데모만 Upload Heap에서 직접 읽는다. 업로드 후 다시 쓰지 않는다.
 	D3D12_HEAP_PROPERTIES heap{};
 	heap.Type = D3D12_HEAP_TYPE_UPLOAD;
 	D3D12_RESOURCE_DESC buffer{};
 	buffer.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	buffer.Width = sizeof(TRIANGLE_VERTICES);
+	buffer.Width = size;
 	buffer.Height = 1;
 	buffer.DepthOrArraySize = 1;
 	buffer.MipLevels = 1;
 	buffer.SampleDesc.Count = 1;
 	buffer.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	ComPtr<ID3D12Resource> created;
 	if (!CheckResult(
 		mDevice->CreateCommittedResource(
 			&heap,
@@ -395,8 +439,25 @@ bool D3D12Renderer::CreateTriangleVertices()
 			&buffer,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
-			IID_PPV_ARGS(&mVertexBuffer)),
-		L"CreateCommittedResource(triangle vertices)"))
+			IID_PPV_ARGS(&created)),
+		L"CreateCommittedResource(upload buffer)"))
+	{
+		return false;
+	}
+
+	resource = std::move(created);
+	return true;
+}
+
+bool D3D12Renderer::CreateCubeGeometry()
+{
+	// 작은 고정 메시의 정점·인덱스만 Upload Heap에서 직접 읽고 이후 수정하지 않는다.
+	if (!CreateUploadBuffer(sizeof(CUBE_VERTICES), mVertexBuffer))
+	{
+		return false;
+	}
+
+	if (!CreateUploadBuffer(sizeof(CUBE_INDICES), mIndexBuffer))
 	{
 		return false;
 	}
@@ -408,12 +469,57 @@ bool D3D12Renderer::CreateTriangleVertices()
 		return false;
 	}
 
-	std::memcpy(mapped, TRIANGLE_VERTICES, sizeof(TRIANGLE_VERTICES));
-	const D3D12_RANGE writtenRange{ 0, sizeof(TRIANGLE_VERTICES) };
-	mVertexBuffer->Unmap(0, &writtenRange);
+	std::memcpy(mapped, CUBE_VERTICES, sizeof(CUBE_VERTICES));
+	const D3D12_RANGE vertexWrittenRange{ 0, sizeof(CUBE_VERTICES) };
+	mVertexBuffer->Unmap(0, &vertexWrittenRange);
 	mVertexBufferView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
-	mVertexBufferView.SizeInBytes = sizeof(TRIANGLE_VERTICES);
+	mVertexBufferView.SizeInBytes = sizeof(CUBE_VERTICES);
 	mVertexBufferView.StrideInBytes = sizeof(Vertex);
+
+	if (!CheckResult(mIndexBuffer->Map(0, &readRange, &mapped), L"IndexBuffer::Map"))
+	{
+		return false;
+	}
+
+	std::memcpy(mapped, CUBE_INDICES, sizeof(CUBE_INDICES));
+	const D3D12_RANGE indexWrittenRange{ 0, sizeof(CUBE_INDICES) };
+	mIndexBuffer->Unmap(0, &indexWrittenRange);
+	mIndexBufferView.BufferLocation = mIndexBuffer->GetGPUVirtualAddress();
+	mIndexBufferView.SizeInBytes = sizeof(CUBE_INDICES);
+	mIndexBufferView.Format = DXGI_FORMAT_R16_UINT;
+	return true;
+}
+
+bool D3D12Renderer::CreateDepthBuffer()
+{
+	D3D12_HEAP_PROPERTIES heap{};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+	D3D12_RESOURCE_DESC depth{};
+	depth.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depth.Width = mWidth;
+	depth.Height = mHeight;
+	depth.DepthOrArraySize = 1;
+	depth.MipLevels = 1;
+	depth.Format = DEPTH_BUFFER_FORMAT;
+	depth.SampleDesc.Count = 1;
+	depth.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	D3D12_CLEAR_VALUE clear{};
+	clear.Format = DEPTH_BUFFER_FORMAT;
+	clear.DepthStencil.Depth = 1.0f;
+	if (!CheckResult(
+		mDevice->CreateCommittedResource(
+			&heap,
+			D3D12_HEAP_FLAG_NONE,
+			&depth,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			&clear,
+			IID_PPV_ARGS(&mDepthBuffer)),
+		L"CreateCommittedResource(depth buffer)"))
+	{
+		return false;
+	}
+
+	mDevice->CreateDepthStencilView(mDepthBuffer.Get(), nullptr, mDsvHeap->GetCPUDescriptorHandleForHeapStart());
 	return true;
 }
 
@@ -436,15 +542,28 @@ bool D3D12Renderer::CreateBackBuffers()
 	return true;
 }
 
-bool D3D12Renderer::Render()
+bool D3D12Renderer::Render(const DirectX::XMFLOAT4X4& worldViewProjection)
 {
-	UINT index = mSwapChain->GetCurrentBackBufferIndex();
+	const UINT index = mSwapChain->GetCurrentBackBufferIndex();
 	auto& frame = mFrames[index];
+
 	// 같은 백 버퍼를 다시 사용할 때만 이전 기록 메모리의 GPU 사용 완료를 확인한다.
 	if (!WaitForFence(frame.fenceValue))
 	{
 		return false;
 	}
+
+	// 슬롯의 Fence 완료 후에만 행렬을 복사한다. 입력 참조는 호출 이후 보관하지 않는다.
+	void* mapped = nullptr;
+	const D3D12_RANGE readRange{ 0, 0 };
+	if (!CheckResult(frame.constantBuffer->Map(0, &readRange, &mapped), L"ConstantBuffer::Map"))
+	{
+		return false;
+	}
+
+	std::memcpy(mapped, &worldViewProjection, sizeof(worldViewProjection));
+	const D3D12_RANGE writtenRange{ 0, sizeof(worldViewProjection) };
+	frame.constantBuffer->Unmap(0, &writtenRange);
 
 	if (!CheckResult(frame.commandAllocator->Reset(), L"CommandAllocator::Reset"))
 	{
@@ -465,26 +584,30 @@ bool D3D12Renderer::Render()
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	mCommandList->ResourceBarrier(1, &barrier);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE handle = mRtvHeap->GetCPUDescriptorHandleForHeapStart();
-	handle.ptr += static_cast<SIZE_T>(index) * mRtvStride;
+	D3D12_CPU_DESCRIPTOR_HANDLE renderTargetHandle = mRtvHeap->GetCPUDescriptorHandleForHeapStart();
+	renderTargetHandle.ptr += static_cast<SIZE_T>(index) * mRtvStride;
 	constexpr float CLEAR_COLOR[] = { 0.08f, 0.16f, 0.28f, 1.0f };
-	mCommandList->ClearRenderTargetView(handle, CLEAR_COLOR, 0, nullptr);
+	mCommandList->ClearRenderTargetView(renderTargetHandle, CLEAR_COLOR, 0, nullptr);
 
-	// 중앙 정사각형 Viewport로 창의 종횡비가 달라져도 삼각형 비율을 유지한다.
-	const float side = static_cast<float>(std::min(mWidth, mHeight));
+	const auto depthHandle = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+	mCommandList->ClearDepthStencilView(depthHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+	// 전체 창을 사용하며 종횡비 보정은 앱의 Projection 행렬이 담당한다.
 	const D3D12_VIEWPORT viewport{
-		(static_cast<float>(mWidth) - side) * 0.5f, (static_cast<float>(mHeight) - side) * 0.5f,
-		side, side,
+		0.0f, 0.0f,
+		static_cast<float>(mWidth), static_cast<float>(mHeight),
 		0.0f, 1.0f
 	};
 	const D3D12_RECT scissor{ 0, 0, static_cast<LONG>(mWidth), static_cast<LONG>(mHeight) };
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	mCommandList->SetGraphicsRootConstantBufferView(0, frame.constantBuffer->GetGPUVirtualAddress());
 	mCommandList->RSSetViewports(1, &viewport);
 	mCommandList->RSSetScissorRects(1, &scissor);
-	mCommandList->OMSetRenderTargets(1, &handle, FALSE, nullptr);
+	mCommandList->OMSetRenderTargets(1, &renderTargetHandle, FALSE, &depthHandle);
 	mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	mCommandList->IASetVertexBuffers(0, 1, &mVertexBufferView);
-	mCommandList->DrawInstanced(static_cast<UINT>(std::size(TRIANGLE_VERTICES)), 1, 0, 0);
+	mCommandList->IASetIndexBuffer(&mIndexBufferView);
+	mCommandList->DrawIndexedInstanced(static_cast<UINT>(std::size(CUBE_INDICES)), 1, 0, 0, 0);
 
 	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
@@ -592,6 +715,7 @@ bool D3D12Renderer::Resize(UINT width, UINT height)
 		return false;
 	}
 
+	mDepthBuffer.Reset();
 	for (auto& buffer : mBackBuffers)
 	{
 		buffer.Reset();
@@ -617,5 +741,5 @@ bool D3D12Renderer::Resize(UINT width, UINT height)
 	mWidth = width;
 	mHeight = height;
 
-	return true;
+	return CreateDepthBuffer();
 }

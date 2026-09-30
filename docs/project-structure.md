@@ -55,14 +55,14 @@ RnimanEngine/
 
 셰이더는 빌드 시 컴파일하여 앱 출력의 `Shaders/`에 CSO를 배치한다. Debug·Release와 매크로 조합·진입점·대상에 따른 변형을 구분하고, HLSLI를 도입하면 include 변경 시 관련 결과도 다시 생성되는지 검증한다.
 
-2026-09-18 삼각형 데모에서는 [TriangleShaders.props](../Sandbox/TriangleShaders.props)를 Sandbox·RendererSmoke에서 함께 import한다. `Shaders/Samples/Sandbox/TriangleVS.hlsl`과 `TrianglePS.hlsl`을 SDK FXC의 `vs_5_0`·`ps_5_0`, 진입점 `Main`으로 컴파일한다. 각 프로젝트의 `$(OutDir)Shaders/`에 `TriangleVS.cso`·`TrianglePS.cso`를 직접 생성하여 출력 충돌을 피한다. Debug는 `/Zi /Od`, Release는 FXC 기본 최적화를 사용한다. 현재 HLSLI·매크로 변형·공용 캐시는 없다. FXC 선택은 초기 데모의 시험 적용이며 향후 Shader Model 6 기능 도입 시 DXC 전환을 검토한다.
+2026-09-24 큐브 데모에서는 [CubeShaders.props](../Sandbox/CubeShaders.props)를 Sandbox·RendererSmoke에서 함께 import한다. `Shaders/Samples/Sandbox/CubeVS.hlsl`과 `CubePS.hlsl`을 SDK FXC의 `vs_5_0`·`ps_5_0`, 진입점 `Main`으로 컴파일한다. 각 프로젝트의 `$(OutDir)Shaders/`에 `CubeVS.cso`·`CubePS.cso`를 직접 생성하여 출력 충돌을 피한다. Debug는 `/Zi /Od`, Release는 FXC 기본 최적화를 사용한다. 현재 HLSLI·매크로 변형·공용 캐시는 없다. FXC 선택은 초기 데모의 시험 적용이며 향후 Shader Model 6 기능 도입 시 DXC 전환을 검토한다.
 
 공용 캐시는 여러 샘플에서 실제 변환 비용이 발생할 때 도입한다. 텍스처는 [텍스처 변환·캐시 규칙](dependencies.md#텍스처-변환과-캐시)을 따르고, 셰이더는 소스·include 내용, 매크로, 진입점, 대상과 컴파일러 버전·옵션을 재사용 조건에 포함한다. 동시 빌드가 같은 결과를 손상하지 않도록 완성된 결과만 공개하며, 캐시 구현을 먼저 범용 시스템으로 확장하지 않는다.
 
 ### 현재 설정과 적용 순서
 
 1. 출력은 `bin/<프로젝트>/<구성>`, 중간 산출물은 `obj/<프로젝트>/<구성>`으로 적용했다. 현재 프로젝트 이름은 Sandbox이며 컴파일 대상은 x64로 유지한다.
-2. 디버거 작업 디렉터리는 `$(OutDir)`로 적용했다. 삼각형 CSO는 EXE 기준으로 로딩하며 빌드가 각 앱 출력 폴더에 직접 생성한다. 일반 에셋 로더·복사 규칙은 해당 기능을 도입할 때 연결한다.
+2. 디버거 작업 디렉터리는 `$(OutDir)`로 적용했다. 큐브 CSO는 EXE 기준으로 로딩하며 빌드가 각 앱 출력 폴더에 직접 생성한다. 일반 에셋 로더·복사 규칙은 해당 기능을 도입할 때 연결한다.
 3. 추가 프로젝트·에셋·셰이더는 해당 기능을 구현할 때 연결한다. 루트의 `Directory.Build.props`를 자동으로 읽어 저장소 기준 출력 경로를 사용한다. 프로젝트별 `..` 개수에 의존하지 않는다.
 4. 출력 경로·파일 배치를 바꾸면 관련 문서와 제외 규칙을 맞추고, 영향받는 앱의 빌드 및 Visual Studio·EXE 직접 실행을 확인한다.
 

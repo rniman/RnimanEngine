@@ -20,12 +20,13 @@ Rniman Engine을 Convention의 주요 적용·검증 프로젝트로 삼아 함�
 
 ### 확인·반영 상태
 
-- **마지막 확인:** 2026-09-18 로컬 `D:/Docs/Convention` HEAD `2aecb9cf55a74251b84b390c399b94619f680d08`의 채택 기준·상호 반영 절차·포맷·프로젝트 문서를 확인했다. 작업 전 미커밋 변경은 없었고 이전 프레임 동기화 기록도 포함되어 있다. 명명·초기화·소유권·함수 규칙은 앞선 작업에서 확인한 적용 범위를 유지한다. 배포 사이트는 이전 접근 오류 이후 재확인하지 않았으며 이번 적용 근거는 로컬 위키다. 확인 커밋을 고정 기준으로 삼지 않는다.
+- **2026-09-30 커밋 전 정리:** 로컬 `D:/Docs/Convention` HEAD `a39c47b`의 채택 기준·상호 반영 절차와 관련 C++ 포맷·헤더·명명·const·소유권 규칙을 확인했다. `docs/baseline.md`와 `docs/projects/rniman-engine.md`에는 기존 미커밋 변경이 있었으며 그대로 유지했다. 기존 규칙을 이번 C++ 변경 범위에 적용했고 공통 규칙·시험 적용 정책은 개정하지 않았다. 원격·배포 상태는 확인하지 않았다.
+- **이전 확인:** 2026-09-24 로컬 `D:/Docs/Convention` HEAD `5ca03a1`의 채택 기준·상호 반영 절차, 관련 C++ 규칙과 엔진·HLSL 문서를 확인했다. 작업 전 미커밋 변경은 없었다. Git 소유권 경고는 명령 단위 `safe.directory` 지정으로 읽었으며 전역 설정은 변경하지 않았다. HLSL 문서는 공통 초안이며 채택 규칙으로 간주하지 않았다. 배포 사이트·원격 최신 상태는 확인하지 않았다.
 - **기존 적용 기록:** `9e2765c194991072378328d35d7f054fb361fa08`은 기존 코드·설정에서 사용한 컨벤션 버전이다. 이번 문서 변경이 이후 규칙 전체의 코드 반영이나 재검증을 의미하지 않는다.
 - **이번 반영:** 초기 구현 당시 로컬 Convention `75bd213835f2b22164e26e430c7e3bed5e507e41`의 채택 기준과 관련 C++ 문서를 확인하여 D3D12Renderer·창 루프·테스트에 적용했다. 확정한 네 가지 초기화 선택과 구현 단계의 시험 적용 사항을 [위키 프로젝트 문서](https://rniman.github.io/convention/projects/rniman-engine/#d3d12-초기-구현-선택)에 로컬 반영했다. 후속 가독성 정리에서는 위키 포맷 문서에 작업별 실패 처리·인자 배치 규칙을 반영했다.
 - **프로젝트 전용 예외·시험 적용:** 네 가지 선택은 사용자 확정 범위에 한해 채택했다. ComPtr·Event 소유, bool 반환과 API/HRESULT 보고, Debug 레이어 필수, VSync·두 백 버퍼는 이번 Sandbox의 시험 적용이다. 위키 프로젝트 문서 전체를 채택한 것으로 취급하지 않는다.
 - **프레임 동기화 전환:** 2026-09-17 사용자 요청으로 프레임별 Allocator·Fence 값과 재사용 시 대기를 구현했다. 기존 화면 검증 선행 조건은 이번 요청 범위에서 변경했으며 미검증 항목은 완료로 간주하지 않는다. 두 슬롯의 구조체·단일 Command List·공유 Fence/Event는 현재 Sandbox에 한정한 구현 선택이다. 공통 컨벤션·도구 설정은 개정하지 않았다.
-- **위키 반영·후속:** 2026-09-17 [프레임 동기화 전환](https://rniman.github.io/convention/projects/rniman-engine/#프레임-동기화-전환)과 baseline 변경 기록은 현재 위 HEAD에 포함되어 있다. 2026-09-18 FXC·Shader Model 5.0, EXE 기준 CSO 로딩, 고정 삼각형의 Upload Heap과 정사각형 Viewport를 [삼각형 출력의 시험 적용](https://rniman.github.io/convention/projects/rniman-engine/#삼각형-출력의-시험-적용)과 baseline 변경 기록에 로컬 반영했다. 공통 C++ 규칙은 개정하지 않았다. 위키 변경은 로컬 미커밋 상태로 남아 있으며, 엔진 커밋과 별도로 관리한다. 푸시·배포는 수행하지 않았다. 원격 최신 상태·배포 완료는 확인하지 않았다.
+- **위키 반영·후속:** 2026-09-17 [프레임 동기화 전환](https://rniman.github.io/convention/projects/rniman-engine/#프레임-동기화-전환)과 baseline 변경 기록은 현재 위 HEAD에 포함되어 있다. 2026-09-18 FXC·Shader Model 5.0, EXE 기준 CSO 로딩, 고정 삼각형의 Upload Heap과 정사각형 Viewport를 [삼각형 출력의 시험 적용](https://rniman.github.io/convention/projects/rniman-engine/#삼각형-출력의-시험-적용)과 baseline 변경 기록에 로컬 반영했다. 공통 C++ 규칙은 개정하지 않았다. 당시 위키 변경은 미커밋 상태였으나 2026-09-24 확인한 위 HEAD에는 포함되어 있다. 푸시·배포는 수행하지 않았다. 원격 최신 상태·배포 완료는 확인하지 않았다.
 
 ## 검증과 문서
 
@@ -88,9 +89,9 @@ Visual Studio 프로젝트를 직접 관리하며, CMake는 필요해질 때 전
 
 [D3D12Renderer.cpp](../Sandbox/D3D12Renderer.cpp)는 고성능 순서의 하드웨어 중 Feature Level 11_0 지원 장치를 선택한다. 선택·실패 후보는 디버그 출력으로 기록하며 WARP는 사용하지 않는다. Debug는 장치 생성 전에 디버그 레이어를 켜고 Graphics Tools가 없으면 실패한다.
 
-초기화 순서는 Factory·Adapter·Device → Queue → Swap Chain → RTV·백 버퍼 → 프레임별 Allocator·단일 Command List → Fence·Event → 삼각형 Pipeline·Vertex Buffer다. Render는 현재 백 버퍼의 이전 제출 완료 확인 → Allocator·Command List Reset → PRESENT에서 RENDER_TARGET 전이 → 어두운 파란색 지우기·삼각형 draw → PRESENT 복귀 → 명령 제출 → Present(1, 0) → Fence Signal과 해당 프레임 값 기록 순서다.
+초기화 순서는 Factory·Adapter·Device → Queue → Swap Chain → RTV·백 버퍼 → DSV Heap·프레임별 Constant Buffer·Allocator·단일 Command List → Fence·Event → 깊이 버퍼·큐브 Pipeline·Vertex/Index Buffer다. Render는 현재 백 버퍼의 이전 제출 완료 확인 → 해당 슬롯의 행렬 복사 → Allocator·Command List Reset → PRESENT에서 RENDER_TARGET 전이 → 색상·깊이 지우기·큐브 indexed draw → PRESENT 복귀 → 명령 제출 → Present(1, 0) → Fence Signal과 해당 프레임 값 기록 순서다.
 
-Resize는 GPU 완료 확인 → 백 버퍼 참조 해제 → ResizeBuffers → 백 버퍼·RTV 재생성 순서다. 동일 크기와 0 크기 요청은 무시한다. COM 자원은 ComPtr로, Fence Event는 렌더러 소멸자에서 정리한다. 실패 시 API·HRESULT·Device removed reason을 표시하고 앱을 종료한다. 장치 손실 자동 복구는 구현하지 않았다.
+Resize는 GPU 완료 확인 → 깊이·백 버퍼 참조 해제 → ResizeBuffers → 백 버퍼·RTV·깊이 버퍼·DSV 재생성 순서다. 동일 크기와 0 크기 요청은 무시한다. COM 자원은 ComPtr로, Fence Event는 렌더러 소멸자에서 정리한다. 실패 시 API·HRESULT·Device removed reason을 표시하고 앱을 종료한다. 장치 손실 자동 복구는 구현하지 않았다.
 
 ### 프레임별 Fence 동기화
 
@@ -152,11 +153,11 @@ Microsoft의 [Adapter 우선순위 열거](https://learn.microsoft.com/en-us/win
 
 ## 삼각형 출력과 검증
 
-2026-09-18에 정점 색상을 보간하는 고정 삼각형을 Sandbox에 연결했다. 아래 선택은 초기 데모 범위의 시험 적용이며 범용 메시·재질·카메라 시스템은 아직 없다.
+이 절은 2026-09-18 당시의 삼각형 구현·검증 이력이다. 2026-09-24 큐브로 교체했으며 현재 구현은 아래 큐브 절을 따른다. 2026-09-18에 정점 색상을 보간하는 고정 삼각형을 Sandbox에 연결했다. 아래 선택은 초기 데모 범위의 시험 적용이며 범용 메시·재질·카메라 시스템은 아직 없다.
 
 ### 셰이더와 파이프라인
 
-- [TriangleShaders.props](../Sandbox/TriangleShaders.props)가 두 프로젝트의 셰이더 빌드 설정을 공유한다. 원본·출력 위치와 컴파일 옵션은 [셰이더 배치](project-structure.md#셰이더와-공용-캐시)를 따른다. 원본 HLSL과 props는 Git에서 관리하고 CSO는 기존 bin 제외 규칙으로 관리 대상에서 뺀다.
+- `TriangleShaders.props`(현재 [CubeShaders.props](../Sandbox/CubeShaders.props))가 두 프로젝트의 셰이더 빌드 설정을 공유한다. 원본·출력 위치와 컴파일 옵션은 [셰이더 배치](project-structure.md#셰이더와-공용-캐시)를 따른다. 원본 HLSL과 props는 Git에서 관리하고 CSO는 기존 bin 제외 규칙으로 관리 대상에서 뺀다.
 - `CreateTrianglePipeline()`은 `GetModuleFileNameW()`로 EXE 위치를 구하고 `D3DReadFileToBlob()`으로 두 CSO를 읽는다. 셰이더 로딩 실패는 대상 경로·API·HRESULT를 보고한다. 런타임 HLSL 컴파일이나 다른 경로로의 대체 검색은 없다.
 - Root Signature 1.0은 입력 레이아웃만 허용하고 매개변수·Sampler는 없다. PSO는 POSITION(float3)·COLOR(float4), VS·PS, 삼각형 토폴로지, RGBA8 단일 Render Target을 연결한다. 솔리드·뒷면 컬링을 사용하고 깊이·스텐실·블렌딩·MSAA는 끈다.
 - `CreateTriangleVertices()`는 위치·색상으로 구성한 세 정점을 Upload Heap에 한 번 복사한다. 총 84바이트의 고정 데모여서 별도 Copy Queue·Default Heap 업로드 단계를 먼저 만들지 않았다. CPU가 이후 내용을 수정하지 않으므로 프레임별 복제는 필요하지 않으며 렌더러가 종료 대기 후 해제한다. 일반 메시 로딩 시에는 Default Heap으로의 업로드를 검토한다.
@@ -166,7 +167,7 @@ Microsoft의 [Adapter 우선순위 열거](https://learn.microsoft.com/en-us/win
 
 [Main.cpp](../Sandbox/Main.cpp)의 `wWinMain` → `Initialize()` → `CreateTrianglePipeline()`·`CreateTriangleVertices()` → 매 프레임 `Render()` 순서다.
 
-정점 배열 → Vertex Buffer → Input Assembler → [TriangleVS.hlsl](../Shaders/Samples/Sandbox/TriangleVS.hlsl)의 clip-space 위치·색상 → 래스터화와 색상 보간 → [TrianglePS.hlsl](../Shaders/Samples/Sandbox/TrianglePS.hlsl)의 색상 출력 → 백 버퍼 → Present로 이어진다.
+정점 배열 → Vertex Buffer → Input Assembler → `TriangleVS.hlsl`의 clip-space 위치·색상 → 래스터화와 색상 보간 → `TrianglePS.hlsl`의 색상 출력 → 백 버퍼 → Present로 이어진다.
 
 `Render()`는 현재 슬롯의 완료 후 PSO를 지정하여 Command List를 Reset한다. 백 버퍼를 지운 뒤 Root Signature·Viewport·Scissor·RTV·Vertex Buffer·TRIANGLELIST를 연결하고 `DrawInstanced(3, 1, 0, 0)`을 호출한다. 기존 상태 전이와 슬롯별 Fence 흐름은 유지한다.
 
@@ -183,3 +184,45 @@ Viewport는 창의 짧은 변을 한 변으로 하는 중앙 정사각형이고,
 - 미검증: Visual Studio F5, 연속 드래그 리사이즈, HLSLI 변경 추적(현재 include 없음), 손상된 CSO·PSO 강제 실패·장치 손실, 전체 live-object 검사와 성능 측정. InfoQueue 오류·경고 0건은 smoke test 범위이며 실제 창의 진단 큐는 별도 수집하지 않았다.
 
 API 흐름은 Microsoft의 [기본 D3D12 컴포넌트 예제](https://learn.microsoft.com/en-us/windows/win32/direct3d12/creating-a-basic-direct3d-12-component)를 참고했다(2026-09-18 확인). 예제의 런타임 셰이더 컴파일·매 프레임 전체 대기 대신 이 프로젝트의 빌드 시 컴파일·프레임별 동기화를 유지한다.
+
+
+## 큐브 출력과 검증
+
+2026-09-24 고정 삼각형을 회전하는 색상 큐브로 교체했다. 입력으로 카메라를 움직이는 기능이나 범용 장면 시스템은 아직 없으며, 이번 범위는 인덱스 메시·행렬 전달·깊이 처리의 실제 연결이다.
+
+### 진입점과 데이터 흐름
+
+[Main.cpp](../Sandbox/Main.cpp)의 `wWinMain`이 `steady_clock` 경과 시간으로 Y축 회전(0.7 rad/s)을 계산한다. World 회전 → `(0, 2, -5)`에서 원점을 보는 View → 수직 FOV 45도·현재 창 종횡비·near 0.1·far 100의 Projection을 곱해 `Render(worldViewProjection)`에 전달한다. 최소화 중에는 그리기를 멈추지만 시간은 계속 흐르므로 복원 시 현재 시각의 회전 각도로 이어진다.
+
+[D3D12Renderer.cpp](../Sandbox/D3D12Renderer.cpp)의 `Initialize` → `CreateCubePipeline`·`CreateCubeGeometry`·`CreateDepthBuffer`가 GPU 자원을 준비한다. `Render`는 현재 슬롯의 Fence 완료 → 64바이트 행렬 복사 → b0 루트 CBV 연결 → Vertex/Index Buffer 연결 → `DrawIndexedInstanced(36, 1, 0, 0, 0)` → Present·Signal 순서다. 입력 행렬의 참조는 저장하지 않는다.
+
+[CubeVS.hlsl](../Shaders/Samples/Sandbox/CubeVS.hlsl)은 로컬 정점에 `mul(float4(position, 1), worldViewProjection)`을 적용하고 색상을 전달한다. [CubePS.hlsl](../Shaders/Samples/Sandbox/CubePS.hlsl)은 보간된 색상을 출력한다. [CubeShaders.props](../Sandbox/CubeShaders.props)를 두 프로젝트가 공유하며 원본·CSO 이름을 함께 Cube로 변경했다. 과거 Triangle CSO가 출력 폴더에 남아도 읽지 않는다. 배포에는 새 EXE와 Cube CSO 둘을 함께 사용한다.
+
+### 자원 수명과 구현 선택
+
+- 정점 8개(224바이트)와 `R16_UINT` 인덱스 36개(72바이트)는 고정 Upload Heap이다. 범용 메시·파일 로딩 경로를 도입할 때 Default Heap 업로드를 검토한다. 세 종류의 실제 소비자(Vertex·Index·Constant Buffer)가 공유하는 생성 코드만 렌더러 내부 `CreateUploadBuffer`로 묶었다.
+- 각 프레임 슬롯이 256바이트 Constant Buffer를 소유한다. 해당 슬롯의 이전 제출 완료 후 Map·복사·Unmap하므로 실행 중인 GPU 데이터와 충돌하지 않는다. 영구 매핑이나 범용 Constant Buffer allocator는 도입하지 않았다.
+- CPU는 DirectXMath 행 벡터의 `World * View * Projection`을 저장하고 HLSL은 `row_major`로 읽어 전치하지 않는다. 왼손 View·Projection과 화면에서 시계 방향인 앞면을 사용한다. 이 행렬·좌표 규약은 Sandbox 한정 시험 적용이며 Unity 익스포트 규약의 확정은 아니다.
+- 단일 Direct Queue가 순서대로 사용하는 D32 깊이 버퍼 하나를 공유한다. `DEPTH_WRITE` 상태를 유지하고 프레임마다 1로 지운다. PSO는 LESS 비교·깊이 쓰기·뒷면 컬링을 사용한다. Resize에서는 전체 GPU 대기 후 해제·재생성하므로 DSV를 실행 중에 덮어쓰지 않는다.
+- 전체 창 Viewport를 사용하고 투영 행렬로 종횡비를 보정한다. 매우 좁은 창에서는 큐브 일부가 시야 밖으로 나갈 수 있으며 자동 카메라 거리 조절은 하지 않는다.
+
+### 검증 결과와 남은 범위
+
+- 솔루션 x64 Debug·Release에서 Sandbox·RendererSmoke와 VS·PS 셰이더 빌드 성공. 샌드박스의 기존 obj 접근 거부 후 승인된 샌드박스 밖 빌드로 확인했다.
+- 두 RendererSmoke 실행 모두 종료 코드 0. 각 136프레임·8회 크기 변경 요청, 프레임마다 다른 행렬, 반복 전체 대기·렌더링 재개·마지막 제출 후 소멸자 정리를 실행했다. D3D12 InfoQueue 오류·경고는 각각 0건이다. 동일·0 크기·1×1·확대·축소를 포함하여 깊이 버퍼 재생성과 프레임별 CBV 사용을 함께 검사했다.
+- Debug 실제 창에서 색상 큐브 출력, 시간 차이가 있는 화면의 회전 변화, 최대화 후 출력을 확인했다. 실제 창의 InfoQueue는 별도로 수집하지 않았다. UI 도구의 복원 입력은 사용자 입력 감지와 대상 창 가림으로 완료를 확인하지 못했다.
+- 큐브 변경 후 Release 실제 화면, 창 복원·최소화·연속 드래그·Alt+F4 종료는 재검증하지 않았다. 이전 삼각형의 결과와 구분한다. Visual Studio F5, CSO 누락·손상 강제 실패, 장치 손실, 전체 live-object 검사, 성능 측정도 이번 검증 범위에 포함하지 않는다.
+- smoke test는 GPU 진단과 자원 수명을 검사하며 픽셀 정답·깊이 가림의 독립적인 정확성 검사를 대신하지 않는다. 현재 단일 볼록 큐브는 컬링으로도 뒷면이 제거되므로 여러 물체가 겹치는 장면의 깊이 검증은 후속 범위다.
+
+### 컨벤션 반영 상태
+
+기존 C++ 채택 규칙을 변경 범위에 적용했으며 공통 규칙은 개정하지 않았다. 행렬 전달·프레임별 상수 수명·D32 공유는 위키의 엔진 전용 시험 적용 대상으로 정리한다. 일반화 후보는 CPU/HLSL 행렬 계약과 변경 가능한 GPU 데이터의 재사용 조건이며, 다른 실제 소비자가 생길 때 공통화 범위를 검토한다. 로컬 위키의 [큐브 출력의 시험 적용](https://rniman.github.io/convention/projects/rniman-engine/#큐브-출력의-시험-적용)과 baseline 변경 기록에 반영했다. `D:/Docs/Convention/docs/projects/rniman-engine.md`·`docs/baseline.md`만 수정했고 문서 내용·로컬 링크·diff 공백 검사를 확인했다. 사이트 구성은 변경하지 않았으며 사이트 빌드·커밋·푸시·배포는 수행하지 않았다. 위 URL의 새 절은 배포 이후 제공된다.
+
+### 2026-09-30 커밋 전 정리와 검증
+
+- 사용자가 현재 정상 렌더링을 확인했다. 구성·창 조작별 확인 범위는 특정하지 않았으므로 기존의 세부 미검증 항목을 일괄 완료 처리하지 않는다.
+- Main·렌더러·테스트의 include 그룹, 행렬 계산 구간과 인자 배치를 정리했다. 렌더러의 RTV 핸들과 테스트의 WVP 변수 이름을 명확히 하고, 제출 슬롯 인덱스를 읽기 전용으로 표시했다. Render API 주석은 Constant Buffer 복사를 명시한다. 행렬 계산식·draw·GPU 동기화 순서는 유지했다.
+- 솔루션 x64 Debug·Release 빌드 성공. 샌드박스의 기존 obj 접근 거부 이후 승인된 샌드박스 밖 빌드로 확인했다.
+- 두 RendererSmoke 실행 모두 종료 코드 0. 각각 136프레임·8회 크기 변경 요청, 반복 전체 대기·렌더링 재개·소멸자 정리를 통과했고 D3D12 오류·경고는 0건이다. git diff --check도 통과했다.
+- 정리 후 실제 Sandbox 창의 시각·조작 확인과 Visual Studio F5는 재수행하지 않았다. 사용자 확인과 자동 테스트 결과를 구분한다.
+- 기존 컨벤션만 적용했으며 새 공통 규칙은 추가하지 않았다. 버퍼 Map·복사 코드는 향후 다른 실제 업로드 경로의 요구가 확인될 때 공통화를 검토한다. 현재의 짧은 호출별 진단 경로는 유지한다.

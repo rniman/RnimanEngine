@@ -4,11 +4,13 @@ D3D12 기반의 미니 게임 엔진. 장면 구성, 입력, 게임 로직, 렌�
 
 ## 현재 상태
 
-2026-09-18 기준, Sandbox에서 D3D12로 RGB 정점 색상을 보간한 삼각형을 출력한다. 빌드 시 컴파일한 Vertex·Pixel Shader, Root Signature, PSO, Vertex Buffer를 연결했다. 어두운 파란색 배경 중앙에 그리며 정사각형 Viewport로 리사이즈 후에도 삼각형 비율을 유지한다. 고성능 하드웨어 GPU 선택, 프레임별 Command Allocator·Fence와 리사이즈·종료의 전체 GPU 대기는 유지한다.
+2026-09-24 기준, Sandbox에서 정점 색상이 보간되는 큐브가 Y축으로 회전한다. 8개 정점·36개 인덱스, 프레임별 Constant Buffer의 World·View·Projection 행렬, 고정 원근 카메라와 D32 깊이 버퍼를 연결했다. 전체 창 Viewport와 현재 종횡비의 투영 행렬을 사용한다. 프레임별 Command Allocator·Fence와 리사이즈·종료의 전체 GPU 대기는 유지한다.
 
-x64 Debug·Release 빌드와 각 136프레임·8회 크기 변경 요청의 smoke test가 성공했으며 D3D12 오류·경고는 0건이었다. 실제 두 구성의 삼각형 출력·Alt+F4 종료, Debug의 최대화·복원·최소화 후 복원을 확인했다. 저장소 밖 작업 디렉터리에서의 셰이더 로딩과 CSO 누락 오류도 확인했다. 연속 드래그 리사이즈·Visual Studio F5·성능 측정은 미검증이다. 상세 범위는 [삼각형 검증 기록](docs/development.md#삼각형-출력과-검증)을 따른다.
+x64 Debug·Release 빌드와 각 136프레임·8회 크기 변경 요청의 smoke test가 성공했으며 D3D12 오류·경고는 0건이었다. Debug 실제 화면에서 큐브의 색상·회전과 최대화 후 출력을 확인했다. Release 실제 화면, 복원·최소화·연속 드래그 리사이즈·종료 조작은 큐브 변경 후 재검증하지 않았다. Visual Studio F5·성능 측정도 미검증이다. 상세 범위는 [큐브 검증 기록](docs/development.md#큐브-출력과-검증)을 따른다.
 
-ECS, Unity 익스포터·로더, PBR은 아직 구현하지 않았다. 다음 단계는 직접 정의한 메시와 Transform·카메라를 연결하고 남은 창 동작을 검증하는 것이다. 첫 마일스톤은 메시·텍스처·카메라·기본 조명을 사용하는 데모를 문서대로 다시 실행할 수 있는 상태다.
+2026-09-30 사용자가 현재 렌더링이 정상임을 확인했다. 이후 커밋 전 코드 정리를 수행하고 x64 Debug·Release 빌드와 각 smoke test(136프레임·8회 크기 변경, D3D12 오류·경고 0)를 재확인했다. 정리 후 실제 창의 시각·조작 검증은 별도로 수행하지 않았다.
+
+현재 메시와 카메라는 데모에 고정되어 있으며 범용 Transform·카메라 시스템, 텍스처·조명, ECS, Unity 익스포터·로더, PBR은 아직 구현하지 않았다. 다음 단계는 카메라 이동과 여러 오브젝트의 Transform 연결이다. 첫 마일스톤은 메시·텍스처·카메라·기본 조명을 사용하는 데모를 문서대로 다시 실행할 수 있는 상태다.
 
 ## 빌드와 실행
 
@@ -27,7 +29,7 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Debug -p:Platfor
 MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platform=x64
 ```
 
-실행 파일은 `bin/Sandbox/<구성>/Sandbox.exe`, 중간 산출물은 `obj/Sandbox/<구성>/`에 생성된다. SDK의 FXC가 `Shaders/Samples/Sandbox/`의 HLSL을 Shader Model 5.0으로 컴파일하여 EXE 옆 `Shaders/TriangleVS.cso`와 `Shaders/TrianglePS.cso`를 만든다. **실행 파일을 옮길 때는 이 `Shaders` 폴더도 함께 복사한다.** 로더는 작업 디렉터리와 무관하게 EXE 위치를 기준으로 CSO를 찾으며, 누락되면 경로와 HRESULT를 표시하고 종료한다. 디버거 작업 디렉터리는 `$(OutDir)`다. `bin/`과 `obj/`는 Git에서 제외한다.
+실행 파일은 `bin/Sandbox/<구성>/Sandbox.exe`, 중간 산출물은 `obj/Sandbox/<구성>/`에 생성된다. SDK의 FXC가 `Shaders/Samples/Sandbox/`의 HLSL을 Shader Model 5.0으로 컴파일하여 EXE 옆 `Shaders/CubeVS.cso`와 `Shaders/CubePS.cso`를 만든다. **실행 파일을 옮길 때는 이 `Shaders` 폴더도 함께 복사한다.** 로더는 작업 디렉터리와 무관하게 EXE 위치를 기준으로 CSO를 찾으며, 누락되면 경로와 HRESULT를 표시하고 종료한다. 디버거 작업 디렉터리는 `$(OutDir)`다. `bin/`과 `obj/`는 Git에서 제외한다.
 
 ## 코드와 문서 안내
 

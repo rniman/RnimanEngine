@@ -2,6 +2,7 @@
 #include "D3D12Renderer.h"
 
 #include <Windows.h>
+#include <DirectXMath.h>
 #include <d3d12.h>
 #include <d3d12sdklayers.h>
 #include <dxgi1_6.h>
@@ -181,6 +182,28 @@ int main()
 			{ 800, 600 },
 			{ 1280, 720 }
 		};
+		UINT width = 1280;
+		UINT height = 720;
+		UINT renderedFrames = 0;
+		auto renderFrame = [&]()
+		{
+			const auto world = DirectX::XMMatrixRotationY(static_cast<float>(renderedFrames++) * 0.07f);
+
+			const auto view = DirectX::XMMatrixLookAtLH(
+				DirectX::XMVectorSet(0.0f, 2.0f, -5.0f, 1.0f),
+				DirectX::XMVectorZero(),
+				DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+			const auto projection = DirectX::XMMatrixPerspectiveFovLH(
+				DirectX::XM_PIDIV4,
+				static_cast<float>(width) / static_cast<float>(height),
+				0.1f,
+				100.0f);
+
+			DirectX::XMFLOAT4X4 worldViewProjection;
+			DirectX::XMStoreFloat4x4(&worldViewProjection, world * view * projection);
+			return renderer.Render(worldViewProjection);
+		};
+
 		for (auto size : SIZES)
 		{
 			if (!renderer.Resize(size.width, size.height))
@@ -188,10 +211,16 @@ int main()
 				return 1;
 			}
 
+			if (size.width != 0 && size.height != 0)
+			{
+				width = size.width;
+				height = size.height;
+			}
+
 			// 명시적 전체 대기 없이 두 프레임 자원을 반복해서 재사용한다.
 			for (int frame = 0; frame < 16; ++frame)
 			{
-				if (!renderer.Render())
+				if (!renderFrame())
 				{
 					return 1;
 				}
@@ -211,7 +240,7 @@ int main()
 		// 전체 대기 후에도 제출을 재개할 수 있으며 마지막 제출의 정리는 소멸자가 맡는다.
 		for (int frame = 0; frame < 8; ++frame)
 		{
-			if (!renderer.Render())
+			if (!renderFrame())
 			{
 				return 1;
 			}

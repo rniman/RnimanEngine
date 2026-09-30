@@ -2,13 +2,14 @@
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
+#include <DirectXMath.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
 #include <array>
 
-/// @brief UI 스레드에서 사용하는 삼각형 렌더러. 창은 앱이 소유한다.
+/// @brief UI 스레드에서 사용하는 색상 큐브 렌더러. 창은 앱이 소유한다.
 /// @note Initialize는 한 번만 호출한다. 실패 후에는 재사용하지 않고 파괴한다.
 class D3D12Renderer
 {
@@ -24,7 +25,8 @@ public:
 	[[nodiscard]] bool Initialize(HWND window, UINT width, UINT height);
 
 	/// @brief 초기화 성공 후 호출한다. 사용할 프레임 자원이 실행 중일 때만 재사용을 기다린다.
-	[[nodiscard]] bool Render();
+	/// @param worldViewProjection 행 벡터용 World * View * Projection. 호출 중 현재 슬롯의 Constant Buffer에 복사한다.
+	[[nodiscard]] bool Render(const DirectX::XMFLOAT4X4& worldViewProjection);
 
 	/// @brief 프레임 경계에서 호출한다. 0 크기는 무시하며 실패 후 렌더링을 중단해야 한다.
 	[[nodiscard]] bool Resize(UINT width, UINT height);
@@ -36,12 +38,20 @@ private:
 	struct FrameResources
 	{
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;
+		Microsoft::WRL::ComPtr<ID3D12Resource> constantBuffer;
 		UINT64 fenceValue = 0;
 	};
 
 	[[nodiscard]] bool CreateBackBuffers();
-	[[nodiscard]] bool CreateTrianglePipeline();
-	[[nodiscard]] bool CreateTriangleVertices();
+	[[nodiscard]] bool CreateCubePipeline();
+	[[nodiscard]] bool CreateCubeGeometry();
+	[[nodiscard]] bool CreateDepthBuffer();
+
+	// 초기화 전용. 성공 시 resource를 교체하며 실패 시 기존 값은 유지한다.
+	[[nodiscard]] bool CreateUploadBuffer(
+		UINT64 size,
+		Microsoft::WRL::ComPtr<ID3D12Resource>& resource);
+
 	[[nodiscard]] bool WaitForFence(UINT64 target);
 	[[nodiscard]] bool CheckResult(HRESULT result, const wchar_t* operation) const;
 
@@ -53,6 +63,8 @@ private:
 
 	Microsoft::WRL::ComPtr<IDXGISwapChain3> mSwapChain;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mDepthBuffer;
 	std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, BUFFER_COUNT> mBackBuffers;
 
 	// 백 버퍼 인덱스로 선택하며, 기록 메모리는 해당 제출의 Fence 완료까지 유지한다.
@@ -63,6 +75,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> mPipelineState;
 	Microsoft::WRL::ComPtr<ID3D12Resource> mVertexBuffer;
 	D3D12_VERTEX_BUFFER_VIEW mVertexBufferView{};
+	Microsoft::WRL::ComPtr<ID3D12Resource> mIndexBuffer;
+	D3D12_INDEX_BUFFER_VIEW mIndexBufferView{};
 
 	Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
 	HANDLE mFenceEvent = nullptr;

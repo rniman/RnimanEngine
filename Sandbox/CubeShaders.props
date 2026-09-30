@@ -13,10 +13,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <FxCompile Include="$(EngineRoot)Shaders\Samples\Sandbox\TriangleVS.hlsl">
+    <FxCompile Include="$(EngineRoot)Shaders\Samples\Sandbox\CubeVS.hlsl">
       <ShaderType>Vertex</ShaderType>
     </FxCompile>
-    <FxCompile Include="$(EngineRoot)Shaders\Samples\Sandbox\TrianglePS.hlsl">
+    <FxCompile Include="$(EngineRoot)Shaders\Samples\Sandbox\CubePS.hlsl">
       <ShaderType>Pixel</ShaderType>
     </FxCompile>
   </ItemGroup>

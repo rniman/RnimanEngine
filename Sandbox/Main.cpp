@@ -2,7 +2,10 @@
 #include "D3D12Renderer.h"
 
 #include <Windows.h>
+#include <DirectXMath.h>
 
+#include <chrono>
+#include <cmath>
 #include <cwchar>
 
 namespace
@@ -197,6 +200,7 @@ int WINAPI wWinMain(
 		return 1;
 	}
 
+	const auto startTime = std::chrono::steady_clock::now();
 	while (true)
 	{
 		MSG message{};
@@ -237,7 +241,24 @@ int WINAPI wWinMain(
 			state.resizePending = false;
 		}
 
-		if (!renderer.Render())
+		// 시간·Transform·카메라는 앱이 결정하고 렌더러에는 최종 행렬만 전달한다.
+		const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count();
+		const float angle = static_cast<float>(std::fmod(seconds * 0.7, DirectX::XM_2PI));
+		const auto world = DirectX::XMMatrixRotationY(angle);
+
+		const auto view = DirectX::XMMatrixLookAtLH(
+			DirectX::XMVectorSet(0.0f, 2.0f, -5.0f, 1.0f),
+			DirectX::XMVectorZero(),
+			DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+		const auto projection = DirectX::XMMatrixPerspectiveFovLH(
+			DirectX::XM_PIDIV4,
+			static_cast<float>(state.width) / static_cast<float>(state.height),
+			0.1f,
+			100.0f);
+
+		DirectX::XMFLOAT4X4 worldViewProjection;
+		DirectX::XMStoreFloat4x4(&worldViewProjection, world * view * projection);
+		if (!renderer.Render(worldViewProjection))
 		{
 			return 1;
 		}

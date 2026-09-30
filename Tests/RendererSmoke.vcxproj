@@ -41,6 +41,6 @@
     <ClCompile Include="RendererSmoke.cpp" />
     <ClCompile Include="../Sandbox/D3D12Renderer.cpp" />
   </ItemGroup>
-  <Import Project="../Sandbox/TriangleShaders.props" />
+  <Import Project="../Sandbox/CubeShaders.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
