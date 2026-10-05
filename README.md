@@ -4,13 +4,22 @@ D3D12 기반의 미니 게임 엔진. 장면 구성, 입력, 게임 로직, 렌�
 
 ## 현재 상태
 
-2026-09-24 기준, Sandbox에서 정점 색상이 보간되는 큐브가 Y축으로 회전한다. 8개 정점·36개 인덱스, 프레임별 Constant Buffer의 World·View·Projection 행렬, 고정 원근 카메라와 D32 깊이 버퍼를 연결했다. 전체 창 Viewport와 현재 종횡비의 투영 행렬을 사용한다. 프레임별 Command Allocator·Fence와 리사이즈·종료의 전체 GPU 대기는 유지한다.
+2026-10-05 기준, Sandbox에서 위치·크기가 다른 색상 큐브 3개가 각각 Y·X·Z축으로 회전한다.
 
-x64 Debug·Release 빌드와 각 136프레임·8회 크기 변경 요청의 smoke test가 성공했으며 D3D12 오류·경고는 0건이었다. Debug 실제 화면에서 큐브의 색상·회전과 최대화 후 출력을 확인했다. Release 실제 화면, 복원·최소화·연속 드래그 리사이즈·종료 조작은 큐브 변경 후 재검증하지 않았다. Visual Studio F5·성능 측정도 미검증이다. 상세 범위는 [큐브 검증 기록](docs/development.md#큐브-출력과-검증)을 따른다.
+- Sandbox 전용 카메라에 키보드 이동·마우스 회전을 연결했다.
+- 큐브는 고정 메시를 공유하며 오브젝트별 Transform과 World·View·Projection 행렬을 사용한다.
+- D32 깊이 버퍼로 가림을 처리하고, 전체 창 Viewport와 현재 종횡비의 투영 행렬을 사용한다.
+- 프레임별 Command Allocator·Constant Buffer·Fence를 관리하며 리사이즈·종료 시 전체 GPU 작업을 기다린다.
 
-2026-09-30 사용자가 현재 렌더링이 정상임을 확인했다. 이후 커밋 전 코드 정리를 수행하고 x64 Debug·Release 빌드와 각 smoke test(136프레임·8회 크기 변경, D3D12 오류·경고 0)를 재확인했다. 정리 후 실제 창의 시각·조작 검증은 별도로 수행하지 않았다.
+코드 정리 후 x64 Debug·Release 빌드와 RendererSmoke를 통과했다. 세 해상도의 가림 검증에서 잘못된 픽셀은 0개였고, 두 그리기 순서의 결과가 일치했다. 자동 테스트의 D3D12 오류·경고는 0건이다. 실제 화면은 이전 구현 검증에서 확인했으며 정리 후 다시 확인하지 않았다. 실제 키보드·마우스 입력 검증도 남아 있다. 상세 범위와 제약은 [최신 검증 결과](docs/development.md#최신-검증-결과)를 따른다.
 
-현재 메시와 카메라는 데모에 고정되어 있으며 범용 Transform·카메라 시스템, 텍스처·조명, ECS, Unity 익스포터·로더, PBR은 아직 구현하지 않았다. 다음 단계는 카메라 이동과 여러 오브젝트의 Transform 연결이다. 첫 마일스톤은 메시·텍스처·카메라·기본 조명을 사용하는 데모를 문서대로 다시 실행할 수 있는 상태다.
+다음 구현은 텍스처와 기본 조명이다. **첫 마일스톤은 메시·텍스처·카메라·기본 조명을 사용하는 데모를 문서대로 다시 실행할 수 있는 상태**다. 범용 장면·Transform 계층·카메라 시스템, ECS, Unity 익스포터·로더, PBR은 아직 구현하지 않았다. 단계별 목표는 [로드맵](docs/roadmap.md)에서 관리한다.
+
+## 카메라 조작
+
+- 창에 포커스가 있을 때 WASD로 시선 방향 전후·수평 좌우 이동, Q/E로 월드 Y축 하강·상승한다. 이동 속도는 초당 3 단위다.
+- 마우스 오른쪽 버튼을 누르고 드래그하면 시점이 회전한다. 커서는 숨기거나 고정하지 않으므로 화면 가장자리에서는 드래그를 다시 시작한다.
+- 포커스 해제·최소화·창 크기 조절 시 입력을 초기화한다. 복원 후 이동 키를 다시 누른다. 큐브 회전은 시작 이후 경과 시간을 따른다.
 
 ## 빌드와 실행
 
@@ -33,7 +42,7 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 
 ## 코드와 문서 안내
 
-대표 실행 프로젝트는 [Sandbox](Sandbox/Sandbox.vcxproj) 하나다. 진입점은 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain`이며 창 생성 → [D3D12Renderer](Sandbox/D3D12Renderer.cpp) 초기화 → 메시지 처리·리사이즈·렌더링 → GPU 완료 확인 → RAII 정리 순서로 실행한다. 엔진 라이브러리와 추가 샘플은 필요할 때 분리한다. 별도 [RendererSmoke 테스트 프로젝트](Tests/RendererSmoke.vcxproj)는 현재 솔루션에 포함되어 있으며 별도 [검증 명령](docs/development.md#d3d12-화면-출력과-검증)으로 실행한다.
+대표 실행 프로젝트는 [Sandbox](Sandbox/Sandbox.vcxproj) 하나다. 진입점은 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain`이며 창 생성 → [D3D12Renderer](Sandbox/D3D12Renderer.cpp) 초기화 → 메시지 처리 → 리사이즈 → 입력·Transform 갱신 → 렌더링 → GPU 완료 확인 → RAII 정리 순서로 실행한다. 엔진 라이브러리와 추가 샘플은 필요할 때 분리한다. 별도 [RendererSmoke 테스트 프로젝트](Tests/RendererSmoke.vcxproj)는 현재 솔루션에 포함되어 있으며 별도 [검증 명령](docs/development.md#자동-검증)으로 실행한다.
 
 | 문서 | 내용 |
 |---|---|
@@ -44,15 +53,3 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 | [개발 설정과 검증](docs/development.md) | 적용 컨벤션, 컴파일·PCH·Git 설정, 검증 기준·기록과 제약 |
 
 작업 전 [컨벤션 적용 기준과 상호 반영 절차](docs/development.md#컨벤션)를 확인한다. 공통 기준은 위키의 현재 채택 규칙이며, 마지막 확인·반영 시점과 프로젝트 적용 상태는 해당 문서에서 관리한다. 저장소의 에이전트 지침 파일은 [AGENTS.md](AGENTS.md)다.
-
-## 카메라 조작
-
-Sandbox 카메라를 추가했다. WASD로 전후·좌우, Q/E로 월드 Y축을 이동하고 오른쪽 드래그로 시점을 회전한다. 포커스 해제·최소화·모달 조작 후 입력과 이동 시간을 초기화한다. 실제 연속 입력 검증은 남아 있다.
-
-## 여러 오브젝트의 Transform
-
-Sandbox의 큐브 3개가 위치·Euler 회전·크기를 갖고 서로 다른 축으로 회전한다. Transform은 Scale * Rotation * Translation을 계산한다. Render는 WVP 목록을 받아 슬롯 Fence 완료 후 오브젝트별 256바이트 상수 영역에 복사한다. RendererSmoke는 SRT 순서와 0·1·3·9개 오브젝트의 버퍼 확장·재사용을 검사한다.
-
-## 겹치는 오브젝트의 픽셀 검증
-
-RendererReadback이 동일한 draw 경로를 Present 없이 실행하고 GPU 완료 후 RGBA8 픽셀을 읽는다. 세 해상도·카메라 위치에서 앞/뒤 단독 화면과 정순·역순 결과를 비교하여 가림과 그리기 순서 독립성을 검사한다. flip-discard로 폐기된 화면을 읽지 않도록 렌더러 내부에 테스트 경로를 분리했다.
