@@ -1,5 +1,6 @@
 // 별도 콘솔 테스트이므로 PCH 없이 컴파일한다.
 #include "D3D12Renderer.h"
+#include "RendererReadback.h"
 #include "SandboxCamera.h"
 #include "Transform.h"
 
@@ -28,6 +29,104 @@ namespace
 		UINT width;
 		UINT height;
 	};
+
+	bool CheckOcclusion(D3D12Renderer& renderer)
+	{
+		RendererReadback readback{ renderer };
+		constexpr std::array<Size, 3> sizes = { Size{ 321, 241 }, Size{ 640, 360 }, Size{ 257, 193 } };
+		for (std::size_t scenario = 0; scenario < sizes.size(); ++scenario)
+		{
+			const UINT width = sizes[scenario].width;
+			const UINT height = sizes[scenario].height;
+			if (!renderer.Resize(width, height))
+			{
+				return false;
+			}
+
+			// 위치가 바뀐 카메라에서도 두 큐브가 겹치지만 서로 교차하지 않는 장면이다.
+			const auto view = DirectX::XMMatrixLookAtLH(
+				DirectX::XMVectorSet(static_cast<float>(scenario) * 0.5f, 0.5f, -6.0f, 1.0f),
+				DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f),
+				DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+			const auto projection = DirectX::XMMatrixPerspectiveFovLH(
+				DirectX::XM_PIDIV4,
+				static_cast<float>(width) / static_cast<float>(height),
+				0.1f,
+				100.0f);
+			Transform front;
+			front.position.x = -0.4f;
+			front.scale = { 0.8f, 0.8f, 0.8f };
+			Transform back;
+			back.position = { 0.5f, 0.0f, 3.0f };
+			back.rotation.y = 0.6f;
+			std::array<DirectX::XMFLOAT4X4, 2> transforms;
+			DirectX::XMStoreFloat4x4(&transforms[0], front.GetWorld() * view * projection);
+			DirectX::XMStoreFloat4x4(&transforms[1], back.GetWorld() * view * projection);
+			std::vector<std::uint32_t> clear;
+			std::vector<std::uint32_t> frontOnly;
+			std::vector<std::uint32_t> backOnly;
+			std::vector<std::uint32_t> forward;
+			std::vector<std::uint32_t> reverse;
+			if (!readback.Capture({}, clear))
+			{
+				return false;
+			}
+
+			if (!readback.Capture(std::span(transforms).first(1), frontOnly))
+			{
+				return false;
+			}
+
+			if (!readback.Capture(std::span(transforms).last(1), backOnly))
+			{
+				return false;
+			}
+
+			if (!readback.Capture(transforms, forward))
+			{
+				return false;
+			}
+
+			std::reverse(transforms.begin(), transforms.end());
+			if (!readback.Capture(transforms, reverse))
+			{
+				return false;
+			}
+
+			std::size_t overlap = 0;
+			std::size_t visibleBack = 0;
+			std::size_t distinctOverlap = 0;
+			std::size_t wrong = 0;
+			for (std::size_t pixel = 0; pixel < clear.size(); ++pixel)
+			{
+				const bool hasFront = frontOnly[pixel] != clear[pixel];
+				const bool hasBack = backOnly[pixel] != clear[pixel];
+				overlap += hasFront && hasBack;
+				visibleBack += !hasFront && hasBack;
+				distinctOverlap += hasFront && hasBack && frontOnly[pixel] != backOnly[pixel];
+				const auto expected = hasFront ? frontOnly[pixel] : backOnly[pixel];
+				wrong += forward[pixel] != expected || reverse[pixel] != expected;
+			}
+
+			const bool sameOrder = forward == reverse;
+			std::printf(
+				"Occlusion %ux%u: overlap=%zu distinct=%zu visibleBack=%zu wrong=%zu orderEqual=%d\n",
+				width,
+				height,
+				overlap,
+				distinctOverlap,
+				visibleBack,
+				wrong,
+				sameOrder);
+			if (overlap < 100 || distinctOverlap < 100 || visibleBack < 100 || wrong != 0 || !sameOrder)
+			{
+				std::puts("FAIL: occlusion pixels or draw order");
+				return false;
+			}
+		}
+
+		return true;
+	}
 
 	bool CheckTransform()
 	{
@@ -267,6 +366,11 @@ int main()
 		}
 
 		if (FAILED(device.As(&messages)))
+		{
+			return 1;
+		}
+
+		if (!CheckOcclusion(renderer))
 		{
 			return 1;
 		}

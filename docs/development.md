@@ -234,3 +234,7 @@ ProcessWindowMessage가 입력을 모으고 SandboxCamera의 Move·Rotate가 갱
 ## 여러 오브젝트의 Transform
 
 Sandbox의 큐브 3개가 위치·Euler 회전·크기를 갖고 서로 다른 축으로 회전한다. Transform은 Scale * Rotation * Translation을 계산한다. Render는 WVP 목록을 받아 슬롯 Fence 완료 후 오브젝트별 256바이트 상수 영역에 복사한다. RendererSmoke는 SRT 순서와 0·1·3·9개 오브젝트의 버퍼 확장·재사용을 검사한다.
+
+## 겹치는 오브젝트의 픽셀 검증
+
+RendererReadback이 동일한 draw 경로를 Present 없이 실행하고 GPU 완료 후 RGBA8 픽셀을 읽는다. 세 해상도·카메라 위치에서 앞/뒤 단독 화면과 정순·역순 결과를 비교하여 가림과 그리기 순서 독립성을 검사한다. flip-discard로 폐기된 화면을 읽지 않도록 렌더러 내부에 테스트 경로를 분리했다.

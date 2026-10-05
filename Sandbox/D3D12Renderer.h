@@ -37,6 +37,10 @@ public:
 	[[nodiscard]] bool WaitForGpu();
 
 private:
+	// GPU 픽셀 검증은 테스트 어댑터만 내부 큐·백 버퍼에 접근한다.
+	friend class RendererReadback;
+	[[nodiscard]] bool RenderInternal(std::span<const DirectX::XMFLOAT4X4> transforms, bool present);
+
 	struct FrameResources
 	{
 		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;

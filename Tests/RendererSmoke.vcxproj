@@ -39,6 +39,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="RendererSmoke.cpp" />
+    <ClInclude Include="RendererReadback.h" />
     <ClCompile Include="../Sandbox/D3D12Renderer.cpp" />
   </ItemGroup>
   <Import Project="../Sandbox/CubeShaders.props" />

@@ -1,0 +1,187 @@
+#pragma once
+
+#include "D3D12Renderer.h"
+
+#include <Windows.h>
+#include <DirectXMath.h>
+#include <d3d12.h>
+#include <dxgi1_6.h>
+#include <wrl/client.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <span>
+#include <vector>
+
+// 테스트 전용 동기식 readback. flip-discard가 내용을 폐기하기 전, Present 없이 읽는다.
+class RendererReadback
+{
+public:
+	/// renderer는 이 어댑터보다 오래 살아 있어야 한다.
+	explicit RendererReadback(D3D12Renderer& renderer)
+		: mRenderer{ renderer }
+	{}
+
+	~RendererReadback()
+	{
+		// 실패 경로에서도 로컬 복사 자원을 해제하기 전에 제출 완료를 기다린다.
+		if (!mRenderer.WaitForGpu())
+		{
+			std::fputs("FAIL: readback cleanup GPU wait\n", stderr);
+		}
+	}
+
+	RendererReadback(const RendererReadback&) = delete;
+	RendererReadback& operator=(const RendererReadback&) = delete;
+
+	/// Present 전 RGBA8 픽셀을 행 패딩 없이 복사한다. 실패하면 테스트를 종료해야 한다.
+	bool Capture(std::span<const DirectX::XMFLOAT4X4> transforms, std::vector<std::uint32_t>& pixels)
+	{
+		const UINT index = mRenderer.mSwapChain->GetCurrentBackBufferIndex();
+		if (!mRenderer.RenderInternal(transforms, false))
+		{
+			return false;
+		}
+
+		if (!mRenderer.WaitForGpu())
+		{
+			return false;
+		}
+
+		auto* source = mRenderer.mBackBuffers[index].Get();
+		const auto description = source->GetDesc();
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
+		UINT64 bytes = 0;
+		mRenderer.mDevice->GetCopyableFootprints(&description, 0, 1, 0, &footprint, nullptr, nullptr, &bytes);
+
+		D3D12_HEAP_PROPERTIES heap{};
+		heap.Type = D3D12_HEAP_TYPE_READBACK;
+		D3D12_RESOURCE_DESC buffer{};
+		buffer.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+		buffer.Width = bytes;
+		buffer.Height = 1;
+		buffer.DepthOrArraySize = 1;
+		buffer.MipLevels = 1;
+		buffer.SampleDesc.Count = 1;
+		buffer.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		if (!Check(
+			mRenderer.mDevice->CreateCommittedResource(
+				&heap,
+				D3D12_HEAP_FLAG_NONE,
+				&buffer,
+				D3D12_RESOURCE_STATE_COPY_DEST,
+				nullptr,
+				IID_PPV_ARGS(&mReadback)),
+			"Create readback"))
+		{
+			return false;
+		}
+
+		if (!mAllocator)
+		{
+			if (!Check(
+				mRenderer.mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&mAllocator)),
+				"Create readback allocator"))
+			{
+				return false;
+			}
+
+			if (!Check(
+				mRenderer.mDevice->CreateCommandList(
+					0,
+					D3D12_COMMAND_LIST_TYPE_DIRECT,
+					mAllocator.Get(),
+					nullptr,
+					IID_PPV_ARGS(&mCommands)),
+				"Create readback list"))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			if (!Check(mAllocator->Reset(), "Reset readback allocator"))
+			{
+				return false;
+			}
+
+			if (!Check(mCommands->Reset(mAllocator.Get(), nullptr), "Reset readback list"))
+			{
+				return false;
+			}
+		}
+
+		D3D12_RESOURCE_BARRIER barrier{};
+		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		barrier.Transition.pResource = source;
+		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		mCommands->ResourceBarrier(1, &barrier);
+
+		D3D12_TEXTURE_COPY_LOCATION destination{};
+		destination.pResource = mReadback.Get();
+		destination.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+		destination.PlacedFootprint = footprint;
+		D3D12_TEXTURE_COPY_LOCATION origin{};
+		origin.pResource = source;
+		origin.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		mCommands->CopyTextureRegion(&destination, 0, 0, 0, &origin, nullptr);
+
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		mCommands->ResourceBarrier(1, &barrier);
+
+		if (!Check(mCommands->Close(), "Close readback list"))
+		{
+			return false;
+		}
+
+		ID3D12CommandList* lists[] = { mCommands.Get() };
+		mRenderer.mCommandQueue->ExecuteCommandLists(1, lists);
+		mRenderer.mGpuWorkPending = true;
+		if (!mRenderer.WaitForGpu())
+		{
+			return false;
+		}
+
+		pixels.resize(static_cast<std::size_t>(description.Width) * description.Height);
+		void* mapped = nullptr;
+		const D3D12_RANGE range{ 0, static_cast<SIZE_T>(bytes) };
+		if (!Check(mReadback->Map(0, &range, &mapped), "Map readback"))
+		{
+			return false;
+		}
+
+		for (UINT row = 0; row < description.Height; ++row)
+		{
+			std::memcpy(
+				pixels.data() + row * description.Width,
+				static_cast<const std::byte*>(mapped) + footprint.Offset + row * footprint.Footprint.RowPitch,
+				static_cast<std::size_t>(description.Width) * sizeof(std::uint32_t));
+		}
+
+		const D3D12_RANGE written{ 0, 0 };
+		mReadback->Unmap(0, &written);
+		return true;
+	}
+
+private:
+	static bool Check(HRESULT result, const char* operation)
+	{
+		if (FAILED(result))
+		{
+			std::printf("FAIL: %s HRESULT=0x%08lX\n", operation, result);
+			return false;
+		}
+
+		return true;
+	}
+
+	D3D12Renderer& mRenderer;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mReadback;
+	Microsoft::WRL::ComPtr<ID3D12CommandAllocator> mAllocator;
+	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommands;
+};

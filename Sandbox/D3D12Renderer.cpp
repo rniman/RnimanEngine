@@ -545,6 +545,11 @@ bool D3D12Renderer::CreateBackBuffers()
 
 bool D3D12Renderer::Render(std::span<const DirectX::XMFLOAT4X4> transforms)
 {
+	return RenderInternal(transforms, true);
+}
+
+bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transforms, bool present)
+{
 	constexpr SIZE_T CONSTANT_STRIDE = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 	static_assert(sizeof(DirectX::XMFLOAT4X4) <= CONSTANT_STRIDE);
 	if (transforms.size() > std::numeric_limits<SIZE_T>::max() / CONSTANT_STRIDE)
@@ -654,7 +659,8 @@ bool D3D12Renderer::Render(std::span<const DirectX::XMFLOAT4X4> transforms)
 	mCommandQueue->ExecuteCommandLists(1, lists);
 	mGpuWorkPending = true;
 
-	HRESULT presentResult = mSwapChain->Present(1, 0);
+	// 픽셀 테스트는 flip-discard의 Present 이후 내용에 의존하지 않고 같은 draw 경로를 읽는다.
+	HRESULT presentResult = present ? mSwapChain->Present(1, 0) : S_OK;
 
 	// Present 이후에도 제출한 프레임의 인덱스에 기록한다. 실패 시 소멸자가 전체 대기를 시도한다.
 	const UINT64 target = ++mFenceValue;
