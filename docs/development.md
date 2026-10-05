@@ -230,3 +230,7 @@ API 흐름은 Microsoft의 [기본 D3D12 컴포넌트 예제](https://learn.micr
 ## 카메라 이동과 입력
 
 ProcessWindowMessage가 입력을 모으고 SandboxCamera의 Move·Rotate가 갱신한 View를 WVP 계산에 사용한다. 이동 시간은 최대 0.1초이며 대각선 속도를 정규화한다. RendererSmoke에 초기 위치·대각선 속도·시간 분할·0초·큰 회전 입력의 CPU 검사를 추가했다.
+
+## 여러 오브젝트의 Transform
+
+Sandbox의 큐브 3개가 위치·Euler 회전·크기를 갖고 서로 다른 축으로 회전한다. Transform은 Scale * Rotation * Translation을 계산한다. Render는 WVP 목록을 받아 슬롯 Fence 완료 후 오브젝트별 256바이트 상수 영역에 복사한다. RendererSmoke는 SRT 순서와 0·1·3·9개 오브젝트의 버퍼 확장·재사용을 검사한다.

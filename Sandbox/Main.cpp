@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "D3D12Renderer.h"
 #include "SandboxCamera.h"
+#include "Transform.h"
 
 #include <Windows.h>
 #include <DirectXMath.h>
@@ -10,6 +11,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <cwchar>
 
 namespace
@@ -332,6 +334,11 @@ int WINAPI wWinMain(
 	const auto startTime = std::chrono::steady_clock::now();
 	auto previousTime = startTime;
 	SandboxCamera camera;
+	std::array<Transform, 3> objects = {
+		Transform{ { -2.5f, 0.0f, 1.0f }, {}, { 0.65f, 0.65f, 0.65f } },
+		Transform{ { 0.0f, 1.0f, 4.0f }, {}, { 0.8f, 1.1f, 0.6f } },
+		Transform{ { 3.5f, -3.0f, 3.0f }, {}, { 0.75f, 0.5f, 0.75f } }
+	};
 
 	while (true)
 	{
@@ -396,7 +403,9 @@ int WINAPI wWinMain(
 		// 큐브 회전은 입력 중단과 관계없이 시작 이후 경과 시간을 사용한다.
 		const double seconds = std::chrono::duration<double>(now - startTime).count();
 		const float angle = static_cast<float>(std::fmod(seconds * 0.7, DirectX::XM_2PI));
-		const auto world = DirectX::XMMatrixRotationY(angle);
+		objects[0].rotation.y = angle;
+		objects[1].rotation.x = static_cast<float>(std::fmod(seconds * 0.35, DirectX::XM_2PI));
+		objects[2].rotation.z = -angle;
 
 		const auto view = camera.GetView();
 		const auto projection = DirectX::XMMatrixPerspectiveFovLH(
@@ -405,9 +414,13 @@ int WINAPI wWinMain(
 			0.1f,
 			100.0f);
 
-		DirectX::XMFLOAT4X4 worldViewProjection;
-		DirectX::XMStoreFloat4x4(&worldViewProjection, world * view * projection);
-		if (!renderer.Render(worldViewProjection))
+		std::array<DirectX::XMFLOAT4X4, 3> transforms;
+		for (std::size_t index = 0; index < objects.size(); ++index)
+		{
+			DirectX::XMStoreFloat4x4(&transforms[index], objects[index].GetWorld() * view * projection);
+		}
+
+		if (!renderer.Render(transforms))
 		{
 			return 1;
 		}

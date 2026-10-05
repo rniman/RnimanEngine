@@ -48,3 +48,7 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 ## 카메라 조작
 
 Sandbox 카메라를 추가했다. WASD로 전후·좌우, Q/E로 월드 Y축을 이동하고 오른쪽 드래그로 시점을 회전한다. 포커스 해제·최소화·모달 조작 후 입력과 이동 시간을 초기화한다. 실제 연속 입력 검증은 남아 있다.
+
+## 여러 오브젝트의 Transform
+
+Sandbox의 큐브 3개가 위치·Euler 회전·크기를 갖고 서로 다른 축으로 회전한다. Transform은 Scale * Rotation * Translation을 계산한다. Render는 WVP 목록을 받아 슬롯 Fence 완료 후 오브젝트별 256바이트 상수 영역에 복사한다. RendererSmoke는 SRT 순서와 0·1·3·9개 오브젝트의 버퍼 확장·재사용을 검사한다.

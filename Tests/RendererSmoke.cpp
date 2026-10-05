@@ -1,6 +1,7 @@
 // 별도 콘솔 테스트이므로 PCH 없이 컴파일한다.
 #include "D3D12Renderer.h"
 #include "SandboxCamera.h"
+#include "Transform.h"
 
 #include <Windows.h>
 #include <DirectXMath.h>
@@ -9,15 +10,46 @@
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
+#include <span>
 #include <vector>
 
 using Microsoft::WRL::ComPtr;
 
 namespace
 {
+	struct Size
+	{
+		UINT width;
+		UINT height;
+	};
+
+	bool CheckTransform()
+	{
+		Transform transform;
+		const auto point = DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 1.0f);
+		if (!DirectX::XMVector3NearEqual(
+			DirectX::XMVector3TransformCoord(point, transform.GetWorld()),
+			point,
+			DirectX::XMVectorReplicate(0.0001f)))
+		{
+			return false;
+		}
+
+		transform.position = { 3.0f, 4.0f, 5.0f };
+		transform.rotation.z = DirectX::XM_PIDIV2;
+		transform.scale = { 2.0f, 3.0f, 4.0f };
+		return DirectX::XMVector3NearEqual(
+			DirectX::XMVector3TransformCoord(point, transform.GetWorld()),
+			DirectX::XMVectorSet(3.0f, 6.0f, 5.0f, 1.0f),
+			DirectX::XMVectorReplicate(0.0001f));
+	}
+
 	bool CheckCamera()
 	{
 		auto position = [](const SandboxCamera& camera)
@@ -133,6 +165,13 @@ namespace
 
 int main()
 {
+	if (!CheckTransform())
+	{
+		std::puts("FAIL: Transform identity or scale-rotation-translation order");
+		return 1;
+	}
+
+	std::puts("Transform: identity and scale-rotation-translation checks passed");
 	if (!CheckCamera())
 	{
 		std::puts("FAIL: camera movement, frame time or rotation");
@@ -232,11 +271,6 @@ int main()
 			return 1;
 		}
 
-		struct Size
-		{
-			UINT width;
-			UINT height;
-		};
 		constexpr Size SIZES[] = {
 			{ 1280, 720 },
 			{ 640, 480 },
@@ -252,7 +286,7 @@ int main()
 		UINT renderedFrames = 0;
 		auto renderFrame = [&]()
 		{
-			const auto world = DirectX::XMMatrixRotationY(static_cast<float>(renderedFrames++) * 0.07f);
+			const float angle = static_cast<float>(renderedFrames) * 0.07f;
 
 			const auto view = DirectX::XMMatrixLookAtLH(
 				DirectX::XMVectorSet(0.0f, 2.0f, -5.0f, 1.0f),
@@ -264,9 +298,26 @@ int main()
 				0.1f,
 				100.0f);
 
-			DirectX::XMFLOAT4X4 worldViewProjection;
-			DirectX::XMStoreFloat4x4(&worldViewProjection, world * view * projection);
-			return renderer.Render(worldViewProjection);
+			// 두 슬롯에서 0→1→3→9개를 사용해 확장·재사용·빈 목록을 검증한다.
+			constexpr std::size_t COUNTS[] = { 0, 1, 3, 9 };
+			const std::size_t count = COUNTS[(renderedFrames / 2) % 4];
+			std::array<DirectX::XMFLOAT4X4, 9> transforms;
+			for (std::size_t index = 0; index < count; ++index)
+			{
+				Transform object;
+				object.position = { static_cast<float>(index) * 0.3f, 0.0f, static_cast<float>(index) * 0.5f };
+				object.rotation = { angle * 0.5f, angle, 0.0f };
+				object.scale = { 0.5f, 0.8f, 0.6f };
+				DirectX::XMStoreFloat4x4(&transforms[index], object.GetWorld() * view * projection);
+			}
+
+			if ((renderedFrames % 2) != 0)
+			{
+				std::reverse(transforms.begin(), transforms.begin() + count);
+			}
+
+			++renderedFrames;
+			return renderer.Render(std::span<const DirectX::XMFLOAT4X4>(transforms.data(), count));
 		};
 
 		for (auto size : SIZES)

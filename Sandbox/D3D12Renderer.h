@@ -8,6 +8,7 @@
 #include <wrl/client.h>
 
 #include <array>
+#include <span>
 
 /// @brief UI 스레드에서 사용하는 색상 큐브 렌더러. 창은 앱이 소유한다.
 /// @note Initialize는 한 번만 호출한다. 실패 후에는 재사용하지 않고 파괴한다.
@@ -25,8 +26,9 @@ public:
 	[[nodiscard]] bool Initialize(HWND window, UINT width, UINT height);
 
 	/// @brief 초기화 성공 후 호출한다. 사용할 프레임 자원이 실행 중일 때만 재사용을 기다린다.
-	/// @param worldViewProjection 행 벡터용 World * View * Projection. 호출 중 현재 슬롯의 Constant Buffer에 복사한다.
-	[[nodiscard]] bool Render(const DirectX::XMFLOAT4X4& worldViewProjection);
+	/// @param transforms 큐브별 World * View * Projection. 호출 중 복사하며 참조를 저장하지 않는다.
+	/// @note 빈 목록은 화면만 지운다. 모든 큐브는 같은 메시와 파이프라인을 공유한다.
+	[[nodiscard]] bool Render(std::span<const DirectX::XMFLOAT4X4> transforms);
 
 	/// @brief 프레임 경계에서 호출한다. 0 크기는 무시하며 실패 후 렌더링을 중단해야 한다.
 	[[nodiscard]] bool Resize(UINT width, UINT height);
@@ -47,7 +49,7 @@ private:
 	[[nodiscard]] bool CreateCubeGeometry();
 	[[nodiscard]] bool CreateDepthBuffer();
 
-	// 초기화 전용. 성공 시 resource를 교체하며 실패 시 기존 값은 유지한다.
+	// 성공 시 resource를 교체한다. 기존 자원이 있으면 호출자가 GPU 사용 완료를 보장한다.
 	[[nodiscard]] bool CreateUploadBuffer(
 		UINT64 size,
 		Microsoft::WRL::ComPtr<ID3D12Resource>& resource);

@@ -102,6 +102,7 @@
   <ItemGroup>
     <ClInclude Include="D3D12Renderer.h" />
     <ClInclude Include="SandboxCamera.h" />
+    <ClInclude Include="Transform.h" />
     <ClCompile Include="D3D12Renderer.cpp" />
     <ClInclude Include="pch.h" />
     <ClCompile Include="Main.cpp" />

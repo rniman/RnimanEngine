@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <iterator>
 #include <limits>
+#include <span>
 #include <string>
 #include <utility>
 
@@ -542,8 +543,15 @@ bool D3D12Renderer::CreateBackBuffers()
 	return true;
 }
 
-bool D3D12Renderer::Render(const DirectX::XMFLOAT4X4& worldViewProjection)
+bool D3D12Renderer::Render(std::span<const DirectX::XMFLOAT4X4> transforms)
 {
+	constexpr SIZE_T CONSTANT_STRIDE = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+	static_assert(sizeof(DirectX::XMFLOAT4X4) <= CONSTANT_STRIDE);
+	if (transforms.size() > std::numeric_limits<SIZE_T>::max() / CONSTANT_STRIDE)
+	{
+		return CheckResult(E_INVALIDARG, L"Render: constant buffer size overflow");
+	}
+
 	const UINT index = mSwapChain->GetCurrentBackBufferIndex();
 	auto& frame = mFrames[index];
 
@@ -553,17 +561,36 @@ bool D3D12Renderer::Render(const DirectX::XMFLOAT4X4& worldViewProjection)
 		return false;
 	}
 
-	// 슬롯의 Fence 완료 후에만 행렬을 복사한다. 입력 참조는 호출 이후 보관하지 않는다.
-	void* mapped = nullptr;
-	const D3D12_RANGE readRange{ 0, 0 };
-	if (!CheckResult(frame.constantBuffer->Map(0, &readRange, &mapped), L"ConstantBuffer::Map"))
+	// 슬롯의 Fence 완료 후에만 확장·복사한다. 다른 슬롯의 실행 중인 상수는 유지한다.
+	const SIZE_T requiredBytes = transforms.size() * CONSTANT_STRIDE;
+	if (requiredBytes > frame.constantBuffer->GetDesc().Width)
 	{
-		return false;
+		if (!CreateUploadBuffer(requiredBytes, frame.constantBuffer))
+		{
+			return false;
+		}
 	}
 
-	std::memcpy(mapped, &worldViewProjection, sizeof(worldViewProjection));
-	const D3D12_RANGE writtenRange{ 0, sizeof(worldViewProjection) };
-	frame.constantBuffer->Unmap(0, &writtenRange);
+	if (!transforms.empty())
+	{
+		void* mapped = nullptr;
+		const D3D12_RANGE readRange{ 0, 0 };
+		if (!CheckResult(frame.constantBuffer->Map(0, &readRange, &mapped), L"ConstantBuffer::Map"))
+		{
+			return false;
+		}
+
+		for (SIZE_T objectIndex = 0; objectIndex < transforms.size(); ++objectIndex)
+		{
+			std::memcpy(
+				static_cast<std::byte*>(mapped) + objectIndex * CONSTANT_STRIDE,
+				&transforms[objectIndex],
+				sizeof(DirectX::XMFLOAT4X4));
+		}
+
+		const D3D12_RANGE writtenRange{ 0, requiredBytes };
+		frame.constantBuffer->Unmap(0, &writtenRange);
+	}
 
 	if (!CheckResult(frame.commandAllocator->Reset(), L"CommandAllocator::Reset"))
 	{
@@ -600,14 +627,19 @@ bool D3D12Renderer::Render(const DirectX::XMFLOAT4X4& worldViewProjection)
 	};
 	const D3D12_RECT scissor{ 0, 0, static_cast<LONG>(mWidth), static_cast<LONG>(mHeight) };
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-	mCommandList->SetGraphicsRootConstantBufferView(0, frame.constantBuffer->GetGPUVirtualAddress());
 	mCommandList->RSSetViewports(1, &viewport);
 	mCommandList->RSSetScissorRects(1, &scissor);
 	mCommandList->OMSetRenderTargets(1, &renderTargetHandle, FALSE, &depthHandle);
 	mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	mCommandList->IASetVertexBuffers(0, 1, &mVertexBufferView);
 	mCommandList->IASetIndexBuffer(&mIndexBufferView);
-	mCommandList->DrawIndexedInstanced(static_cast<UINT>(std::size(CUBE_INDICES)), 1, 0, 0, 0);
+	for (SIZE_T objectIndex = 0; objectIndex < transforms.size(); ++objectIndex)
+	{
+		mCommandList->SetGraphicsRootConstantBufferView(
+			0,
+			frame.constantBuffer->GetGPUVirtualAddress() + objectIndex * CONSTANT_STRIDE);
+		mCommandList->DrawIndexedInstanced(static_cast<UINT>(std::size(CUBE_INDICES)), 1, 0, 0, 0);
+	}
 
 	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
