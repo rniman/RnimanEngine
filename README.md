@@ -44,3 +44,7 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 | [개발 설정과 검증](docs/development.md) | 적용 컨벤션, 컴파일·PCH·Git 설정, 검증 기준·기록과 제약 |
 
 작업 전 [컨벤션 적용 기준과 상호 반영 절차](docs/development.md#컨벤션)를 확인한다. 공통 기준은 위키의 현재 채택 규칙이며, 마지막 확인·반영 시점과 프로젝트 적용 상태는 해당 문서에서 관리한다. 저장소의 에이전트 지침 파일은 [AGENTS.md](AGENTS.md)다.
+
+## 카메라 조작
+
+Sandbox 카메라를 추가했다. WASD로 전후·좌우, Q/E로 월드 Y축을 이동하고 오른쪽 드래그로 시점을 회전한다. 포커스 해제·최소화·모달 조작 후 입력과 이동 시간을 초기화한다. 실제 연속 입력 검증은 남아 있다.

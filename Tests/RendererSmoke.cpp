@@ -1,5 +1,6 @@
 // 별도 콘솔 테스트이므로 PCH 없이 컴파일한다.
 #include "D3D12Renderer.h"
+#include "SandboxCamera.h"
 
 #include <Windows.h>
 #include <DirectXMath.h>
@@ -8,6 +9,7 @@
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -16,6 +18,61 @@ using Microsoft::WRL::ComPtr;
 
 namespace
 {
+	bool CheckCamera()
+	{
+		auto position = [](const SandboxCamera& camera)
+		{
+			return DirectX::XMMatrixInverse(nullptr, camera.GetView()).r[3];
+		};
+		auto positionsMatch = [](DirectX::FXMVECTOR left, DirectX::FXMVECTOR right)
+		{
+			return DirectX::XMVectorGetX(DirectX::XMVector3Length(DirectX::XMVectorSubtract(left, right))) < 0.0001f;
+		};
+		SandboxCamera camera;
+		const auto origin = position(camera);
+		if (!positionsMatch(origin, DirectX::XMVectorSet(0.0f, 2.0f, -5.0f, 1.0f)))
+		{
+			return false;
+		}
+
+		SandboxCamera stepped;
+		camera.Move(1.0f, 0.0f, 1.0f, 1.0f);
+		for (int index = 0; index < 100; ++index)
+		{
+			stepped.Move(1.0f, 0.0f, 1.0f, 0.01f);
+		}
+
+		const auto displacement = DirectX::XMVectorSubtract(position(camera), origin);
+		const float distance = DirectX::XMVectorGetX(DirectX::XMVector3Length(displacement));
+		if (std::abs(distance - 3.0f) > 0.0001f || !positionsMatch(position(camera), position(stepped)))
+		{
+			return false;
+		}
+
+		camera.Move(1.0f, 1.0f, 1.0f, 0.0f);
+		camera.Move(0.0f, 0.0f, 0.0f, 1.0f);
+		if (!positionsMatch(position(camera), position(stepped)))
+		{
+			return false;
+		}
+
+		camera.Rotate(1000000.0f, 1000000.0f);
+		DirectX::XMFLOAT4X4 view;
+		DirectX::XMStoreFloat4x4(&view, camera.GetView());
+		for (const auto& row : view.m)
+		{
+			for (float value : row)
+			{
+				if (!std::isfinite(value))
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
 	class TestWindow
 	{
 	public:
@@ -76,6 +133,14 @@ namespace
 
 int main()
 {
+	if (!CheckCamera())
+	{
+		std::puts("FAIL: camera movement, frame time or rotation");
+		return 1;
+	}
+
+	std::puts("Camera: initial position, diagonal speed, frame time and pitch checks passed");
+
 	ComPtr<ID3D12Debug> debug;
 	HRESULT result = D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
 	if (FAILED(result))

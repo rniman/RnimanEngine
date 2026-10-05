@@ -226,3 +226,7 @@ API 흐름은 Microsoft의 [기본 D3D12 컴포넌트 예제](https://learn.micr
 - 두 RendererSmoke 실행 모두 종료 코드 0. 각각 136프레임·8회 크기 변경 요청, 반복 전체 대기·렌더링 재개·소멸자 정리를 통과했고 D3D12 오류·경고는 0건이다. git diff --check도 통과했다.
 - 정리 후 실제 Sandbox 창의 시각·조작 확인과 Visual Studio F5는 재수행하지 않았다. 사용자 확인과 자동 테스트 결과를 구분한다.
 - 기존 컨벤션만 적용했으며 새 공통 규칙은 추가하지 않았다. 버퍼 Map·복사 코드는 향후 다른 실제 업로드 경로의 요구가 확인될 때 공통화를 검토한다. 현재의 짧은 호출별 진단 경로는 유지한다.
+
+## 카메라 이동과 입력
+
+ProcessWindowMessage가 입력을 모으고 SandboxCamera의 Move·Rotate가 갱신한 View를 WVP 계산에 사용한다. 이동 시간은 최대 0.1초이며 대각선 속도를 정규화한다. RendererSmoke에 초기 위치·대각선 속도·시간 분할·0초·큰 회전 입력의 CPU 검사를 추가했다.
