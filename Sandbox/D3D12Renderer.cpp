@@ -377,7 +377,7 @@ bool D3D12Renderer::CreateCubePipeline()
 		return false;
 	}
 
-	constexpr D3D12_INPUT_ELEMENT_DESC INPUT_ELEMENTS[] = {
+	constexpr D3D12_INPUT_ELEMENT_DESC inputElements[] = {
 		{
 			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
 			0, offsetof(Vertex, position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
@@ -391,7 +391,7 @@ bool D3D12Renderer::CreateCubePipeline()
 	pipeline.pRootSignature = mRootSignature.Get();
 	pipeline.VS = { vertexShader->GetBufferPointer(), vertexShader->GetBufferSize() };
 	pipeline.PS = { pixelShader->GetBufferPointer(), pixelShader->GetBufferSize() };
-	pipeline.InputLayout = { INPUT_ELEMENTS, static_cast<UINT>(std::size(INPUT_ELEMENTS)) };
+	pipeline.InputLayout = { inputElements, static_cast<UINT>(std::size(inputElements)) };
 	pipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	pipeline.SampleMask = std::numeric_limits<UINT>::max();
 	pipeline.SampleDesc.Count = 1;
@@ -550,9 +550,9 @@ bool D3D12Renderer::Render(std::span<const DirectX::XMFLOAT4X4> transforms)
 
 bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transforms, bool present)
 {
-	constexpr SIZE_T CONSTANT_STRIDE = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-	static_assert(sizeof(DirectX::XMFLOAT4X4) <= CONSTANT_STRIDE);
-	if (transforms.size() > std::numeric_limits<SIZE_T>::max() / CONSTANT_STRIDE)
+	constexpr std::size_t constantStride = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+	static_assert(sizeof(DirectX::XMFLOAT4X4) <= constantStride);
+	if (transforms.size() > std::numeric_limits<std::size_t>::max() / constantStride)
 	{
 		return CheckResult(E_INVALIDARG, L"Render: constant buffer size overflow");
 	}
@@ -567,7 +567,7 @@ bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transfor
 	}
 
 	// 슬롯의 Fence 완료 후에만 확장·복사한다. 다른 슬롯의 실행 중인 상수는 유지한다.
-	const SIZE_T requiredBytes = transforms.size() * CONSTANT_STRIDE;
+	const std::size_t requiredBytes = transforms.size() * constantStride;
 	if (requiredBytes > frame.constantBuffer->GetDesc().Width)
 	{
 		if (!CreateUploadBuffer(requiredBytes, frame.constantBuffer))
@@ -585,10 +585,10 @@ bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transfor
 			return false;
 		}
 
-		for (SIZE_T objectIndex = 0; objectIndex < transforms.size(); ++objectIndex)
+		for (std::size_t objectIndex = 0; objectIndex < transforms.size(); ++objectIndex)
 		{
 			std::memcpy(
-				static_cast<std::byte*>(mapped) + objectIndex * CONSTANT_STRIDE,
+				static_cast<std::byte*>(mapped) + objectIndex * constantStride,
 				&transforms[objectIndex],
 				sizeof(DirectX::XMFLOAT4X4));
 		}
@@ -618,8 +618,8 @@ bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transfor
 
 	D3D12_CPU_DESCRIPTOR_HANDLE renderTargetHandle = mRtvHeap->GetCPUDescriptorHandleForHeapStart();
 	renderTargetHandle.ptr += static_cast<SIZE_T>(index) * mRtvStride;
-	constexpr float CLEAR_COLOR[] = { 0.08f, 0.16f, 0.28f, 1.0f };
-	mCommandList->ClearRenderTargetView(renderTargetHandle, CLEAR_COLOR, 0, nullptr);
+	constexpr float clearColor[] = { 0.08f, 0.16f, 0.28f, 1.0f };
+	mCommandList->ClearRenderTargetView(renderTargetHandle, clearColor, 0, nullptr);
 
 	const auto depthHandle = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 	mCommandList->ClearDepthStencilView(depthHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
@@ -638,11 +638,11 @@ bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transfor
 	mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	mCommandList->IASetVertexBuffers(0, 1, &mVertexBufferView);
 	mCommandList->IASetIndexBuffer(&mIndexBufferView);
-	for (SIZE_T objectIndex = 0; objectIndex < transforms.size(); ++objectIndex)
+	for (std::size_t objectIndex = 0; objectIndex < transforms.size(); ++objectIndex)
 	{
 		mCommandList->SetGraphicsRootConstantBufferView(
 			0,
-			frame.constantBuffer->GetGPUVirtualAddress() + objectIndex * CONSTANT_STRIDE);
+			frame.constantBuffer->GetGPUVirtualAddress() + objectIndex * constantStride);
 		mCommandList->DrawIndexedInstanced(static_cast<UINT>(std::size(CUBE_INDICES)), 1, 0, 0, 0);
 	}
 

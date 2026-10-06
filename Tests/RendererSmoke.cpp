@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <span>
 #include <vector>
 
@@ -375,7 +376,7 @@ int main()
 			return 1;
 		}
 
-		constexpr Size SIZES[] = {
+		constexpr Size sizes[] = {
 			{ 1280, 720 },
 			{ 640, 480 },
 			{ 0, 0 },
@@ -403,8 +404,8 @@ int main()
 				100.0f);
 
 			// 두 슬롯에서 0→1→3→9개를 사용해 확장·재사용·빈 목록을 검증한다.
-			constexpr std::size_t COUNTS[] = { 0, 1, 3, 9 };
-			const std::size_t count = COUNTS[(renderedFrames / 2) % 4];
+			constexpr std::size_t counts[] = { 0, 1, 3, 9 };
+			const std::size_t count = counts[(renderedFrames / 2) % 4];
 			std::array<DirectX::XMFLOAT4X4, 9> transforms;
 			for (std::size_t index = 0; index < count; ++index)
 			{
@@ -424,7 +425,7 @@ int main()
 			return renderer.Render(std::span<const DirectX::XMFLOAT4X4>(transforms.data(), count));
 		};
 
-		for (auto size : SIZES)
+		for (auto size : sizes)
 		{
 			if (!renderer.Resize(size.width, size.height))
 			{

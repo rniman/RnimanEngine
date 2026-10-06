@@ -220,7 +220,8 @@ namespace
 	public:
 		explicit WindowResources(HINSTANCE instance)
 			: mInstance{ instance }
-		{}
+		{
+		}
 
 		~WindowResources()
 		{

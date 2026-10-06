@@ -53,7 +53,7 @@ private:
 	[[nodiscard]] bool CreateCubeGeometry();
 	[[nodiscard]] bool CreateDepthBuffer();
 
-	// 성공 시 resource를 교체한다. 기존 자원이 있으면 호출자가 GPU 사용 완료를 보장한다.
+	// 성공 시 resource를 교체하고 실패 시 유지한다. 기존 자원의 GPU 사용 완료는 호출자가 보장한다.
 	[[nodiscard]] bool CreateUploadBuffer(
 		UINT64 size,
 		Microsoft::WRL::ComPtr<ID3D12Resource>& resource);

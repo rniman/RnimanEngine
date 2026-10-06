@@ -19,10 +19,12 @@
 class RendererReadback
 {
 public:
-	/// renderer는 이 어댑터보다 오래 살아 있어야 한다.
+	/// @brief renderer의 Present 전 픽셀을 읽는 테스트 어댑터를 생성한다.
+	/// @param renderer 이 어댑터보다 오래 살아 있어야 하는 초기화된 렌더러.
 	explicit RendererReadback(D3D12Renderer& renderer)
 		: mRenderer{ renderer }
-	{}
+	{
+	}
 
 	~RendererReadback()
 	{
@@ -36,7 +38,9 @@ public:
 	RendererReadback(const RendererReadback&) = delete;
 	RendererReadback& operator=(const RendererReadback&) = delete;
 
-	/// Present 전 RGBA8 픽셀을 행 패딩 없이 복사한다. 실패하면 테스트를 종료해야 한다.
+	/// @brief Present 전 RGBA8 픽셀을 행 패딩 없이 복사한다.
+	/// @param pixels 성공 시 픽셀로 교체한다. 실패 시에도 내용이나 크기가 바뀔 수 있다.
+	/// @return 성공 시 true. 실패 시 false를 반환하며 테스트를 종료해야 한다.
 	bool Capture(std::span<const DirectX::XMFLOAT4X4> transforms, std::vector<std::uint32_t>& pixels)
 	{
 		const UINT index = mRenderer.mSwapChain->GetCurrentBackBufferIndex();

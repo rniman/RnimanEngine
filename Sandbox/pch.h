@@ -1,6 +1,6 @@
 #pragma once
 
-// Windows declarations must precede the DirectX headers.
+// Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>

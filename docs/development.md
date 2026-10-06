@@ -1,6 +1,6 @@
 # 개발 설정과 검증
 
-[프로젝트 소개와 실행](../README.md) · 기준일: 2026-10-05
+[프로젝트 소개와 실행](../README.md) · 기준일: 2026-10-06
 
 현재 개발 기준, 코드 흐름, 최신 검증 결과를 관리한다. 기능 목표는 [로드맵](roadmap.md), 설계 방향은 [엔진 설계](design.md), 작업 지침은 [AGENTS.md](../AGENTS.md)를 따른다.
 
@@ -17,13 +17,24 @@
 
 | 구분 | 현재 상태 |
 |---|---|
-| 확인 | 로컬 `D:/Docs/Convention` HEAD `a39c47b`와 기존 미커밋 변경을 확인했다. 관련 C++ 채택 규칙을 변경 범위에 적용했다. |
+| 확인 | 2026-10-06 공개 C++ 위키와 로컬 `D:/Docs/Convention` HEAD `33e96f6`의 채택 규칙·초안을 대조했다. Sandbox·RendererSmoke의 지역 상수 명명, 빈 함수 본문, 직접 include와 API 주석을 현재 채택 규칙에 맞췄다. |
 | 프로젝트 한정 채택 | 앱의 창·렌더러 소유 분리, 고성능 하드웨어 우선과 WARP 대체 없음, 프레임 경계 리사이즈, 프레임 자원 재사용 전 Fence 대기. 초기의 매 프레임 전체 대기는 2026-09-17에 대체했다. |
-| 시험 적용 | ComPtr·Event 수명, bool/API/HRESULT 실패 보고, Debug 레이어 필수, VSync·두 백 버퍼, FXC·SM5.0, 행렬 계약·D32 공유, 카메라·Transform·오브젝트별 상수, 테스트 전용 readback. |
-| 위키 반영 | `docs/projects/rniman-engine.md`와 `docs/baseline.md`에 카메라·여러 Transform·겹침 픽셀 검증까지 로컬 반영했다. 해당 변경은 위키 작업 트리에 있으며 아직 커밋하지 않았다. |
-| 남은 범위 | 위키 사이트 빌드·커밋·푸시·배포는 수행하지 않았고 원격 최신 상태도 확인하지 않았다. 새 절의 공개 URL은 배포 후 제공된다. HLSL 공통 규칙은 초안이다. |
+| 시험 적용 | ComPtr·Event 수명, bool/API/HRESULT 실패 보고, Debug 레이어 필수, VSync·두 백 버퍼, FXC·SM5.0, 행렬 계약·D32 공유, 카메라·Transform·오브젝트별 상수, 테스트 전용 readback. 자료형 초안 중 CPU 복사 크기·span 순회에 `std::size_t`를 사용하고 전용 API 타입을 유지하는 선택을 적용했다. |
+| 위키 반영 | 자료형·변환 초안은 공개 위키에서 확인했다. 이번 코드 적용 결과는 위키의 RnimanEngine 프로젝트 문서와 적용 기준의 변경 기록에 반영하고 strict 사이트 빌드를 통과했다. 이번 위키 편집은 로컬 미커밋 상태다. |
+| 남은 범위 | 자료형·변환과 HLSL은 공통 초안이며 전체 채택을 뜻하지 않는다. 자체 별칭·범용 변환 도우미는 실제 반복 요구가 생기면 검토한다. 위키 변경의 커밋·푸시·배포는 수행하지 않았다. |
 
 다른 실제 소비자가 생기면 Transform·렌더 데이터 수집, 입력 초기화, 버퍼 업로드의 공통화를 검토한다. 현재 Sandbox의 선택을 범용 엔진 정책으로 확대하지 않는다.
+
+### 자료형·변환 초안의 적용 범위
+
+2026-10-06 [자료형 선택과 별칭](https://rniman.github.io/convention/coding/cpp/type-selection/)과 [타입 변환과 범위 검사](https://rniman.github.io/convention/coding/cpp/conversions/)를 확인하고 다음 범위를 코드에 시험 적용했다. 두 문서는 공통 초안이며 규칙 전문은 위키에서 관리한다.
+
+- `RenderInternal`의 상수 간격·CPU 복사 크기·span 순회 인덱스를 `SIZE_T`에서 `std::size_t`로 변경했다. 곱셈 전에 `std::numeric_limits<std::size_t>`로 범위를 확인하며, 기존 GPU 동기화와 자원 확장 동작은 유지한다.
+- `UINT` 크기·백 버퍼 인덱스·디스크립터 간격, `UINT64` Fence·자원 크기, InfoQueue의 `SIZE_T` 출력 변수와 디스크립터 주소 계산은 전용 API 계약에 맞춰 유지한다. 출력 포인터를 다른 정수 타입으로 캐스팅하지 않는다.
+- 전체 범위가 보존되는 API 전달에는 캐스트를 추가하지 않았다. 고정 배열 길이·크기의 `UINT` 변환과 Win32·COM 포인터 변환은 기존 범위·객체 계약을 유지한다. 테스트 readback의 픽셀 출력은 실패 시에도 바뀔 수 있다는 계약을 주석에 명시했다.
+- 자체 기본 타입 별칭·공통 변환 도우미는 미도입이다. 실제 모듈·변환 소비자의 반복 요구가 생기면 공통 초안의 도입 조건과 실패 보고의 공통화를 검토한다.
+
+공개 위키는 웹 열기 도구에서 접근하지 못해 승인된 PowerShell HTTP 조회로 확인했다. 초기 문서 작성 때의 C++20 예제 4개 컴파일·범위 검사와 엔진 검증은 별개다. 이번 코드 변경 후에는 아래 빌드·실행 검증과 공개 헤더 4개의 PCH 없는 `/W4 /WX` 독립 컴파일을 수행했다. C++ 파일 9개의 UTF-8 BOM 없음·LF·마지막 개행·탭 들여쓰기·후행 공백을 확인했다.
 
 ## 프로젝트 설정
 
@@ -31,7 +42,7 @@
 
 | 항목 | 설정 |
 |---|---|
-| 확인한 환경 | Visual Studio Community 2026 18.10.0, MSVC `v145` / `14.51.36231`, Windows SDK `10.0.26100.0` |
+| 확인한 환경 | Visual Studio Community 2026 18.10.3, MSVC `v145` / `14.51.36231`, Windows SDK `10.0.26100.0` |
 | C++ | C++20, Unicode, `/utf-8`, `/W4`, `/permissive-`, `/EHsc`; 경고의 오류 처리는 끔 |
 | 런타임 | Debug `/MDd`, Release `/MD` |
 | 출력 | `bin/<프로젝트>/<구성>/`, `obj/<프로젝트>/<구성>/`; 디버거 작업 디렉터리 `$(OutDir)` |
@@ -114,13 +125,14 @@ MSBuild.exe Tests/RendererSmoke.vcxproj -nologo -t:Build -p:Configuration=Releas
 
 ## 최신 검증 결과
 
-2026-10-05 코드 정리 후 Debug·Release 빌드와 RendererSmoke를 다시 실행했다. 화면 확인은 이전 구현 검증 결과이며 이번 정리에서는 재실행하지 않았다.
+2026-10-06 컨벤션 적용 후 Debug·Release 빌드와 RendererSmoke를 다시 실행했다. Sandbox는 두 구성 모두 숨김 창으로 실행하고 `WM_CLOSE`로 정상 종료했다. 커밋 전 diff 검토에서도 두 구성의 빌드·RendererSmoke·숨김 창 정상 종료를 재확인했다. 화면 확인은 이전 구현 검증 결과이며 이번에는 시각 확인·실제 입력 검증을 수행하지 않았다.
 
 | 구분 | 확인한 결과 |
 |---|---|
 | 빌드 | x64 Debug·Release의 Sandbox·RendererSmoke·셰이더 빌드 성공 |
 | CPU 검사 | Transform 기본값·SRT 순서, 카메라 초기 위치·대각선 속도·시간 분할·0초/무입력·큰 회전 입력의 유한 행렬 통과 |
 | GPU 검사 | 두 구성 모두 픽셀 검증 15프레임·3회 리사이즈 + smoke 136프레임·8회 요청, 종료 코드 0, InfoQueue 오류·경고 0 |
+| 앱 실행 | Debug·Release 숨김 창 초기화·메시지 루프·WM_CLOSE 종료, 두 구성 종료 코드 0. 화면·입력 검증은 제외 |
 | Debug 화면 | 여러 큐브 도입 당시 배치·크기·독립 회전·가림 관찰 |
 | Release 화면 | 현재 앱 배치의 큐브 3개, 최대화·최소화 후 복원·Alt+F4 후 창 종료 확인. UI 종료 코드는 미수집 |
 
@@ -151,6 +163,7 @@ MSBuild.exe Tests/RendererSmoke.vcxproj -nologo -t:Build -p:Configuration=Releas
 | 2026-09-24 | 삼각형을 인덱스 큐브·WVP·깊이 버퍼로 교체 |
 | 2026-09-30 | 큐브 코드 정리, 사용자 정상 렌더링 확인과 두 구성 자동 검증 기록 |
 | 2026-10-05 | 카메라 입력 → 여러 Transform → 겹침 픽셀 비교 연결 |
+| 2026-10-06 | 지역 상수 명명·빈 본문·직접 include·API 계약 주석 정리, CPU 크기·span 인덱스에 표준 타입 시험 적용 |
 
 ### 삼각형 출력과 검증
 

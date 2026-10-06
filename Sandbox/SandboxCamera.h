@@ -9,16 +9,17 @@
 class SandboxCamera
 {
 public:
-	/// 마우스 이동량(픽셀)을 yaw·pitch에 반영한다.
+	/// @brief 마우스 이동량(픽셀)을 yaw·pitch에 반영한다.
 	void Rotate(float deltaX, float deltaY)
 	{
-		constexpr float SENSITIVITY = 0.003f;
-		constexpr float PITCH_LIMIT = DirectX::XM_PIDIV2 - 0.01f;
-		mYaw = std::remainder(mYaw + deltaX * SENSITIVITY, DirectX::XM_2PI);
-		mPitch = std::clamp(mPitch - deltaY * SENSITIVITY, -PITCH_LIMIT, PITCH_LIMIT);
+		constexpr float sensitivity = 0.003f;
+		constexpr float pitchLimit = DirectX::XM_PIDIV2 - 0.01f;
+		mYaw = std::remainder(mYaw + deltaX * sensitivity, DirectX::XM_2PI);
+		mPitch = std::clamp(mPitch - deltaY * sensitivity, -pitchLimit, pitchLimit);
 	}
 
-	/// 전후는 시선 방향, 좌우는 수평, 상하는 월드 Y축. 대각선 이동도 같은 속도로 맞춘다.
+	/// @brief 전후는 시선 방향, 좌우는 수평, 상하는 월드 Y축. 대각선 이동도 같은 속도로 맞춘다.
+	/// @param seconds 이동에 반영할 시간(초).
 	void Move(float right, float up, float forward, float seconds)
 	{
 		const auto direction = DirectX::XMVectorAdd(
@@ -26,10 +27,10 @@ public:
 			DirectX::XMVectorSet(std::cos(mYaw) * right, up, -std::sin(mYaw) * right, 0.0f));
 		if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(direction)) > 0.0f)
 		{
-			constexpr float MOVE_SPEED = 3.0f;
+			constexpr float moveSpeed = 3.0f;
 			const auto displacement = DirectX::XMVectorScale(
 				DirectX::XMVector3Normalize(direction),
-				MOVE_SPEED * seconds);
+				moveSpeed * seconds);
 			DirectX::XMStoreFloat3(&mPosition, DirectX::XMVectorAdd(DirectX::XMLoadFloat3(&mPosition), displacement));
 		}
 	}
