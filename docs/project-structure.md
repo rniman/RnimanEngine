@@ -2,13 +2,53 @@
 
 [프로젝트 소개와 실행](../README.md)
 
-2026-09-15에 정리한 확장 방향이다. **현재 대표 앱은 `Sandbox`이며, 별도 `Tests/RendererSmoke.vcxproj`는 렌더러 자동 검증용이다. 아래 트리는 목표 구조다.** 새 폴더와 공용 시스템은 실제 사용하는 기능을 추가할 때 만든다.
+## 현재 프로젝트와 코드
+
+2026-10-07 기준, [솔루션](../RnimanEngine.slnx)에는 대표 앱 하나와 자동 검증용 실행 프로젝트 두 개가 있다. 세 프로젝트는 x64 Debug·Release를 지원한다.
+
+| 프로젝트 | 역할과 빌드 대상 |
+|---|---|
+| [Sandbox](../Sandbox/Sandbox.vcxproj) | 창·입력·카메라·큐브·렌더러를 연결하는 대표 데모. 아래 Sandbox 구현 파일과 큐브 셰이더를 빌드 |
+| [RendererSmoke](../Tests/RendererSmoke.vcxproj) | Transform·카메라 수학, 깊이 가림 픽셀, 리사이즈·GPU 동기화 검증. 실제 `D3D12Renderer.cpp`와 큐브 셰이더를 함께 빌드 |
+| [WindowSmoke](../Tests/WindowSmoke.vcxproj) | 창 수명·Win32 메시지·입력 소비·리사이즈 요청 검증. 실제 `Win32Window.cpp`를 함께 빌드하며 렌더러·셰이더는 사용하지 않음 |
+
+Smoke 프로젝트는 테스트 전용 진입점을 가진 실행 파일이다. Sandbox가 참조하는 라이브러리가 아니며 앱 실행·배포에 포함할 필요가 없다. 솔루션 빌드가 테스트를 실행하지는 않는다. 실행 명령과 검사 범위는 [자동 검증](development.md#자동-검증)을 따른다.
+
+```text
+RnimanEngine/
+├─ RnimanEngine.slnx
+├─ Directory.Build.props         # 프로젝트별 출력·중간 산출물 경로
+├─ Sandbox/
+│  ├─ Sandbox.vcxproj / Sandbox.vcxproj.filters
+│  ├─ Main.cpp                   # wWinMain 진입점
+│  ├─ SandboxApp.h / .cpp        # 앱 실행·데모 갱신과 자원 수명
+│  ├─ Win32Window.h / .cpp       # 창·메시지·입력 수집
+│  ├─ D3D12Renderer.h / .cpp     # D3D12 자원·명령·동기화
+│  ├─ SandboxCamera.h           # Sandbox 카메라 이동·회전
+│  ├─ Transform.h               # 오브젝트 변환·World 행렬
+│  ├─ pch.h / .cpp              # Sandbox PCH
+│  └─ CubeShaders.props         # Sandbox·RendererSmoke 공용 빌드 설정
+├─ Tests/
+│  ├─ RendererSmoke.vcxproj / RendererSmoke.cpp / RendererReadback.h
+│  └─ WindowSmoke.vcxproj / WindowSmoke.cpp
+├─ Shaders/Samples/Sandbox/
+│  ├─ CubeVS.hlsl
+│  └─ CubePS.hlsl
+└─ docs/
+```
+
+SandboxApp이 창 → 렌더러 순으로 초기화하고 렌더러 → 창 순으로 정리한다. Win32Window는 입력을 수집하고 앱이 프레임마다 소비하며, D3D12Renderer는 전달받은 WVP를 렌더 호출 중 복사한다. 상세 진입점·데이터 흐름과 수명 제약은 [개발 문서](development.md#진입점과-수명)에서 관리한다. 현재 공용 Engine 라이브러리와 별도 Scene·Input 계층은 없다.
+
+## 향후 확장 구조
+
+2026-09-15에 정리한 확장 방향이다. **아래 트리는 목표 구조다.** 새 폴더와 공용 시스템은 실제 사용하는 기능을 추가할 때 만든다.
 
 ```text
 RnimanEngine/
 ├─ RnimanEngine.slnx
 ├─ Engine/                        # 공통 엔진 라이브러리로 분리할 때 추가
 ├─ Sandbox/                       # 대표 통합 데모·실행 프로젝트
+├─ Tests/                         # 자동 검증용 실행 프로젝트
 ├─ Samples/                       # 기능별 실행 프로젝트 모음
 │  └─ LightingDemo/               # 예시: 조명 기능 검증
 ├─ Tools/                         # Unity 익스포터 등 필요할 때 추가
@@ -59,10 +99,10 @@ RnimanEngine/
 
 공용 캐시는 여러 샘플에서 실제 변환 비용이 발생할 때 도입한다. 텍스처는 [텍스처 변환·캐시 규칙](dependencies.md#텍스처-변환과-캐시)을 따르고, 셰이더는 소스·include 내용, 매크로, 진입점, 대상과 컴파일러 버전·옵션을 재사용 조건에 포함한다. 동시 빌드가 같은 결과를 손상하지 않도록 완성된 결과만 공개하며, 캐시 구현을 먼저 범용 시스템으로 확장하지 않는다.
 
-### 현재 설정과 적용 순서
+## 현재 설정과 적용 순서
 
-1. 출력은 `bin/<프로젝트>/<구성>`, 중간 산출물은 `obj/<프로젝트>/<구성>`으로 적용했다. 현재 프로젝트 이름은 Sandbox이며 컴파일 대상은 x64로 유지한다.
-2. 디버거 작업 디렉터리는 `$(OutDir)`로 적용했다. 큐브 CSO는 EXE 기준으로 로딩하며 빌드가 각 앱 출력 폴더에 직접 생성한다. 일반 에셋 로더·복사 규칙은 해당 기능을 도입할 때 연결한다.
+1. Sandbox·RendererSmoke·WindowSmoke의 출력은 `bin/<프로젝트>/<구성>`, 중간 산출물은 `obj/<프로젝트>/<구성>`으로 적용했다. 세 프로젝트 모두 x64로 유지한다.
+2. Sandbox 디버거 작업 디렉터리는 `$(OutDir)`로 적용했다. 큐브 CSO는 EXE 기준으로 로딩하며 Sandbox·RendererSmoke 빌드가 각 출력 폴더에 직접 생성한다. 일반 에셋 로더·복사 규칙은 해당 기능을 도입할 때 연결한다.
 3. 추가 프로젝트·에셋·셰이더는 해당 기능을 구현할 때 연결한다. 루트의 `Directory.Build.props`를 자동으로 읽어 저장소 기준 출력 경로를 사용한다. 프로젝트별 `..` 개수에 의존하지 않는다.
 4. 출력 경로·파일 배치를 바꾸면 관련 문서와 제외 규칙을 맞추고, 영향받는 앱의 빌드 및 Visual Studio·EXE 직접 실행을 확인한다.
 
