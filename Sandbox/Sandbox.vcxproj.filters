@@ -5,6 +5,12 @@
     <ClCompile Include="D3D12Renderer.cpp" />
     <ClInclude Include="pch.h" />
     <ClCompile Include="Main.cpp" />
+    <ClInclude Include="SandboxApp.h" />
+    <ClCompile Include="SandboxApp.cpp" />
+    <ClInclude Include="SandboxCamera.h" />
+    <ClInclude Include="Transform.h" />
+    <ClInclude Include="Win32Window.h" />
+    <ClCompile Include="Win32Window.cpp" />
     <ClCompile Include="pch.cpp" />
   </ItemGroup>
 </Project>
