@@ -6,6 +6,8 @@
     <ClCompile Include="AssetLoader.cpp" />
     <ClInclude Include="AssetLoader.h" />
     <ClInclude Include="ImageData.h" />
+    <ClInclude Include="RenderData.h" />
+    <ClInclude Include="SandboxLighting.h" />
     <ClInclude Include="pch.h" />
     <ClCompile Include="Main.cpp" />
     <ClInclude Include="SandboxApp.h" />

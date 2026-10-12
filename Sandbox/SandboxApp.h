@@ -2,6 +2,7 @@
 
 #include "D3D12Renderer.h"
 #include "SandboxCamera.h"
+#include "SandboxLighting.h"
 #include "Transform.h"
 #include "Win32Window.h"
 
@@ -33,6 +34,7 @@ private:
 	Win32Window mWindow;
 	D3D12Renderer mRenderer;
 	SandboxCamera mCamera;
+	SandboxLighting mLighting;
 	std::array<Transform, 3> mObjects = {
 		Transform{ { -2.5f, 0.0f, 1.0f }, {}, { 0.65f, 0.65f, 0.65f } },
 		Transform{ { 0.0f, 1.0f, 4.0f }, {}, { 0.8f, 1.1f, 0.6f } },

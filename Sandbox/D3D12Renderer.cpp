@@ -3,6 +3,7 @@
 
 #include "AssetLoader.h"
 #include "ImageData.h"
+#include "RenderData.h"
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
@@ -13,6 +14,7 @@
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -22,6 +24,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 using Microsoft::WRL::ComPtr;
@@ -32,37 +35,73 @@ namespace
 	{
 		float position[3];
 		float uv[2];
+		float normal[3];
 	};
+
+	// CPU 구조체와 HLSL 레지스터의 실제 배치를 함께 검증한다.
+	static_assert(std::is_trivially_copyable_v<RenderObject> && sizeof(RenderObject) == 192);
+	static_assert(offsetof(RenderObject, world) == 64 && offsetof(RenderObject, normalTransform) == 128);
+	static_assert(std::is_trivially_copyable_v<FrameLighting> && sizeof(FrameLighting) == 64);
+	static_assert(offsetof(FrameLighting, intensity) == 12 && offsetof(FrameLighting, ambientStrength) == 28);
+	static_assert(offsetof(FrameLighting, specularStrength) == 44 && offsetof(FrameLighting, shininess) == 48);
+
+	bool IsValidLighting(const FrameLighting& lighting)
+	{
+		const float values[] = {
+			lighting.direction.x, lighting.direction.y, lighting.direction.z, lighting.intensity,
+			lighting.color.x, lighting.color.y, lighting.color.z, lighting.ambientStrength,
+			lighting.cameraPosition.x, lighting.cameraPosition.y, lighting.cameraPosition.z,
+			lighting.specularStrength, lighting.shininess
+		};
+		for (float value : values)
+		{
+			if (!std::isfinite(value))
+			{
+				return false;
+			}
+		}
+
+		const float lengthSquared = DirectX::XMVectorGetX(
+			DirectX::XMVector3LengthSq(DirectX::XMLoadFloat3(&lighting.direction)));
+		return std::abs(lengthSquared - 1.0f) <= 0.001f &&
+			lighting.intensity >= 0.0f && lighting.intensity <= 2.0f &&
+			lighting.color.x >= 0.0f && lighting.color.x <= 1.0f &&
+			lighting.color.y >= 0.0f && lighting.color.y <= 1.0f &&
+			lighting.color.z >= 0.0f && lighting.color.z <= 1.0f &&
+			lighting.ambientStrength >= 0.0f && lighting.ambientStrength <= 1.0f &&
+			lighting.specularStrength >= 0.0f && lighting.specularStrength <= 1.0f &&
+			lighting.shininess >= 1.0f && lighting.shininess <= 256.0f;
+	}
 
 	constexpr DXGI_FORMAT BACK_BUFFER_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
 	constexpr DXGI_FORMAT COLOR_VIEW_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	constexpr DXGI_FORMAT DEPTH_BUFFER_FORMAT = DXGI_FORMAT_D32_FLOAT;
 	// 면별로 정점을 분리한다. UV는 좌상 (0, 0), 우하 (1, 1)이다.
 	constexpr Vertex CUBE_VERTICES[] = {
-		{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 1.0f } },
-		{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f } },
-		{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f } },
-		{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f } },
-		{ { 1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f } },
-		{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { -1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
-		{ { -1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f } },
-		{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f } },
-		{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { -1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f } },
-		{ { -1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f } },
-		{ { 1.0f, -1.0f, -1.0f }, { 0.0f, 1.0f } },
-		{ { 1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f } },
-		{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
-		{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f } },
-		{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f } },
-		{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
-		{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 1.0f } },
-		{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f } },
-		{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f } },
-		{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f } },
-		{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f } }
+		{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
+		{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f } },
+		{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, -1.0f } },
+		{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
+		{ { 1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f } },
+		{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+		{ { -1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+		{ { -1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f } },
+		{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f }, { -1.0f, 0.0f, 0.0f } },
+		{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f }, { -1.0f, 0.0f, 0.0f } },
+		{ { -1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f }, { -1.0f, 0.0f, 0.0f } },
+		{ { -1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f }, { -1.0f, 0.0f, 0.0f } },
+		{ { 1.0f, -1.0f, -1.0f }, { 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
+		{ { 1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+		{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+		{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 0.0f, 0.0f } },
+		{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+		{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+		{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+		{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+		{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f }, { 0.0f, -1.0f, 0.0f } },
+		{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, -1.0f, 0.0f } },
+		{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f }, { 0.0f, -1.0f, 0.0f } },
+		{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f }, { 0.0f, -1.0f, 0.0f } }
 	};
 
 	// 외부에서 볼 때 화면에서 시계 방향인 면을 앞면으로 사용한다.
@@ -370,7 +409,7 @@ bool D3D12Renderer::CreateCubePipeline()
 	textureRange.NumDescriptors = 1;
 	textureRange.BaseShaderRegister = 0;
 	textureRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-	D3D12_ROOT_PARAMETER parameters[2]{};
+	D3D12_ROOT_PARAMETER parameters[3]{};
 	parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	parameters[0].Descriptor.ShaderRegister = 0;
 	parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
@@ -378,6 +417,9 @@ bool D3D12Renderer::CreateCubePipeline()
 	parameters[1].DescriptorTable.NumDescriptorRanges = 1;
 	parameters[1].DescriptorTable.pDescriptorRanges = &textureRange;
 	parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	parameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	parameters[2].Descriptor.ShaderRegister = 1;
+	parameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	D3D12_STATIC_SAMPLER_DESC sampler{};
 	// 단일 밉과 선형 필터를 사용하며 면 끝에서 반대편 픽셀을 섞지 않는다.
 	sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -431,6 +473,10 @@ bool D3D12Renderer::CreateCubePipeline()
 		{
 			"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
 			0, offsetof(Vertex, uv), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+		},
+		{
+			"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+			0, offsetof(Vertex, normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 		}
 	};
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline{};
@@ -710,16 +756,24 @@ bool D3D12Renderer::CreateBackBuffers()
 	return true;
 }
 
-bool D3D12Renderer::Render(std::span<const DirectX::XMFLOAT4X4> transforms)
+bool D3D12Renderer::Render(std::span<const RenderObject> objects, const FrameLighting& lighting)
 {
-	return RenderInternal(transforms, true);
+	return RenderInternal(objects, lighting, true);
 }
 
-bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transforms, bool present)
+bool D3D12Renderer::RenderInternal(
+	std::span<const RenderObject> objects,
+	const FrameLighting& lighting,
+	bool present)
 {
 	constexpr std::size_t constantStride = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-	static_assert(sizeof(DirectX::XMFLOAT4X4) <= constantStride);
-	if (transforms.size() > std::numeric_limits<std::size_t>::max() / constantStride)
+	static_assert(sizeof(RenderObject) <= constantStride && sizeof(FrameLighting) <= constantStride);
+	if (!IsValidLighting(lighting))
+	{
+		return CheckResult(E_INVALIDARG, L"Render: invalid Phong lighting values");
+	}
+
+	if (objects.size() > std::numeric_limits<std::size_t>::max() / constantStride - 1)
 	{
 		return CheckResult(E_INVALIDARG, L"Render: constant buffer size overflow");
 	}
@@ -734,7 +788,7 @@ bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transfor
 	}
 
 	// 슬롯의 Fence 완료 후에만 확장·복사한다. 다른 슬롯의 실행 중인 상수는 유지한다.
-	const std::size_t requiredBytes = transforms.size() * constantStride;
+	const std::size_t requiredBytes = (objects.size() + 1) * constantStride;
 	if (requiredBytes > frame.constantBuffer->GetDesc().Width)
 	{
 		if (!CreateUploadBuffer(requiredBytes, frame.constantBuffer))
@@ -743,26 +797,25 @@ bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transfor
 		}
 	}
 
-	if (!transforms.empty())
+	void* mapped = nullptr;
+	const D3D12_RANGE readRange{ 0, 0 };
+	if (!CheckResult(frame.constantBuffer->Map(0, &readRange, &mapped), L"ConstantBuffer::Map"))
 	{
-		void* mapped = nullptr;
-		const D3D12_RANGE readRange{ 0, 0 };
-		if (!CheckResult(frame.constantBuffer->Map(0, &readRange, &mapped), L"ConstantBuffer::Map"))
-		{
-			return false;
-		}
-
-		for (std::size_t objectIndex = 0; objectIndex < transforms.size(); ++objectIndex)
-		{
-			std::memcpy(
-				static_cast<std::byte*>(mapped) + objectIndex * constantStride,
-				&transforms[objectIndex],
-				sizeof(DirectX::XMFLOAT4X4));
-		}
-
-		const D3D12_RANGE writtenRange{ 0, requiredBytes };
-		frame.constantBuffer->Unmap(0, &writtenRange);
+		return false;
 	}
+
+	// 첫 256바이트는 프레임 공통 b1, 뒤에는 오브젝트별 b0를 배치한다.
+	std::memcpy(mapped, &lighting, sizeof(FrameLighting));
+	for (std::size_t objectIndex = 0; objectIndex < objects.size(); ++objectIndex)
+	{
+		std::memcpy(
+			static_cast<std::byte*>(mapped) + (objectIndex + 1) * constantStride,
+			&objects[objectIndex],
+			sizeof(RenderObject));
+	}
+
+	const D3D12_RANGE writtenRange{ 0, requiredBytes };
+	frame.constantBuffer->Unmap(0, &writtenRange);
 
 	if (!CheckResult(frame.commandAllocator->Reset(), L"CommandAllocator::Reset"))
 	{
@@ -802,17 +855,18 @@ bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transfor
 	ID3D12DescriptorHeap* heaps[] = { mSrvHeap.Get() };
 	mCommandList->SetDescriptorHeaps(1, heaps);
 	mCommandList->SetGraphicsRootDescriptorTable(1, mSrvHeap->GetGPUDescriptorHandleForHeapStart());
+	mCommandList->SetGraphicsRootConstantBufferView(2, frame.constantBuffer->GetGPUVirtualAddress());
 	mCommandList->RSSetViewports(1, &viewport);
 	mCommandList->RSSetScissorRects(1, &scissor);
 	mCommandList->OMSetRenderTargets(1, &renderTargetHandle, FALSE, &depthHandle);
 	mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	mCommandList->IASetVertexBuffers(0, 1, &mVertexBufferView);
 	mCommandList->IASetIndexBuffer(&mIndexBufferView);
-	for (std::size_t objectIndex = 0; objectIndex < transforms.size(); ++objectIndex)
+	for (std::size_t objectIndex = 0; objectIndex < objects.size(); ++objectIndex)
 	{
 		mCommandList->SetGraphicsRootConstantBufferView(
 			0,
-			frame.constantBuffer->GetGPUVirtualAddress() + objectIndex * constantStride);
+			frame.constantBuffer->GetGPUVirtualAddress() + (objectIndex + 1) * constantStride);
 		mCommandList->DrawIndexedInstanced(static_cast<UINT>(std::size(CUBE_INDICES)), 1, 0, 0, 0);
 	}
 

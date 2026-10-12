@@ -43,6 +43,32 @@ namespace
 			return false;
 		}
 
+		constexpr UINT lightingKeys[] = { VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_PRIOR, VK_NEXT, 'R' };
+		for (UINT key : lightingKeys)
+		{
+			SendMessageW(handle, WM_KEYDOWN, key, 0);
+		}
+
+		const auto lightingInput = window.ConsumeInput();
+		for (UINT key : lightingKeys)
+		{
+			if (!Check(lightingInput.keys[key], "lighting key hold"))
+			{
+				return false;
+			}
+
+			SendMessageW(handle, WM_KEYUP, key, 0);
+		}
+
+		const auto lightingReleased = window.ConsumeInput();
+		for (UINT key : lightingKeys)
+		{
+			if (!Check(!lightingReleased.keys[key], "lighting key release"))
+			{
+				return false;
+			}
+		}
+
 		SendMessageW(handle, WM_RBUTTONDOWN, 0, MAKELPARAM(10, 20));
 		if (!Check(GetCapture() == handle, "mouse capture"))
 		{

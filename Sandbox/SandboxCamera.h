@@ -35,6 +35,11 @@ public:
 		}
 	}
 
+	DirectX::XMFLOAT3 GetPosition() const
+	{
+		return mPosition;
+	}
+
 	DirectX::XMMATRIX GetView() const
 	{
 		return DirectX::XMMatrixLookToLH(

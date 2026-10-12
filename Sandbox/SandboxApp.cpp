@@ -3,7 +3,9 @@
 
 #include "AssetLoader.h"
 #include "D3D12Renderer.h"
+#include "RenderData.h"
 #include "SandboxCamera.h"
+#include "SandboxLighting.h"
 #include "Transform.h"
 #include "Win32Window.h"
 
@@ -126,6 +128,19 @@ void SandboxApp::Update(const Win32Window::InputState& input, float deltaSeconds
 {
 	if (mWindow.GetState().focused)
 	{
+		if (input.keys['R'])
+		{
+			mLighting.Reset();
+		}
+		else
+		{
+			mLighting.Adjust(
+				static_cast<float>(input.keys[VK_RIGHT]) - static_cast<float>(input.keys[VK_LEFT]),
+				static_cast<float>(input.keys[VK_UP]) - static_cast<float>(input.keys[VK_DOWN]),
+				static_cast<float>(input.keys[VK_PRIOR]) - static_cast<float>(input.keys[VK_NEXT]),
+				deltaSeconds);
+		}
+
 		mCamera.Rotate(input.mouseDeltaX, input.mouseDeltaY);
 		mCamera.Move(
 			static_cast<float>(input.keys['D']) - static_cast<float>(input.keys['A']),
@@ -151,11 +166,24 @@ bool SandboxApp::Render()
 		0.1f,
 		100.0f);
 
-	std::array<DirectX::XMFLOAT4X4, 3> transforms;
+	std::array<RenderObject, 3> objects;
 	for (std::size_t index = 0; index < mObjects.size(); ++index)
 	{
-		DirectX::XMStoreFloat4x4(&transforms[index], mObjects[index].GetWorld() * view * projection);
+		const auto object = CreateRenderObject(mObjects[index].GetWorld(), view * projection);
+		if (!object)
+		{
+			const wchar_t* message = L"Sandbox cube transform is non-finite, singular or reflected.";
+			OutputDebugStringW(message);
+			MessageBoxW(mWindow.GetHandle(), message, L"Sandbox transform error", MB_OK | MB_ICONERROR);
+			return false;
+		}
+
+		objects[index] = *object;
 	}
 
-	return mRenderer.Render(transforms);
+	FrameLighting lighting;
+	lighting.direction = mLighting.GetDirection();
+	lighting.intensity = mLighting.GetIntensity();
+	lighting.cameraPosition = mCamera.GetPosition();
+	return mRenderer.Render(objects, lighting);
 }

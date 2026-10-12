@@ -2,6 +2,8 @@
 #include "AssetLoader.h"
 #include "D3D12Renderer.h"
 #include "ImageData.h"
+#include "LightingChecks.h"
+#include "RenderData.h"
 #include "RendererReadback.h"
 #include "SandboxCamera.h"
 #include "Transform.h"
@@ -99,6 +101,11 @@ namespace
 		}
 
 		RendererReadback readback{ renderer };
+		FrameLighting lighting;
+		// 텍스처·가림 기준 이미지는 ambient=1인 동일 조명 경로에서 비교한다.
+		lighting.ambientStrength = 1.0f;
+		lighting.intensity = 0.0f;
+		lighting.specularStrength = 0.0f;
 		constexpr std::array<DirectX::XMFLOAT3, 6> eyes = {
 			DirectX::XMFLOAT3{ 0, 0, -5 }, { 0, 0, 5 }, { -5, 0, 0 },
 			{ 5, 0, 0 }, { 0, 5, 0 }, { 0, -5, 0 }
@@ -116,10 +123,10 @@ namespace
 			// 화면의 반 픽셀 이동으로 3x3 텍셀 중심과 readback 픽셀 중심을 일치시킨다.
 			const auto projection = DirectX::XMMatrixOrthographicLH(4, 4, 0.1f, 10) *
 				DirectX::XMMatrixTranslation(1.0f / 192, -1.0f / 192, 0);
-			std::array<DirectX::XMFLOAT4X4, 1> transforms;
-			DirectX::XMStoreFloat4x4(&transforms[0], view * projection);
+			std::array<RenderObject, 1> transforms;
+			transforms[0] = CreateRenderObject(DirectX::XMMatrixIdentity(), view * projection).value();
 			std::vector<std::uint32_t> pixels;
-			if (!readback.Capture(transforms, pixels))
+			if (!readback.Capture(transforms, lighting, pixels))
 			{
 				return false;
 			}
@@ -158,6 +165,11 @@ namespace
 	bool CheckOcclusion(D3D12Renderer& renderer)
 	{
 		RendererReadback readback{ renderer };
+		FrameLighting lighting;
+		// 텍스처·가림 기준 이미지는 ambient=1인 동일 조명 경로에서 비교한다.
+		lighting.ambientStrength = 1.0f;
+		lighting.intensity = 0.0f;
+		lighting.specularStrength = 0.0f;
 		constexpr std::array<Size, 3> sizes = { Size{ 321, 241 }, Size{ 640, 360 }, Size{ 257, 193 } };
 		for (std::size_t scenario = 0; scenario < sizes.size(); ++scenario)
 		{
@@ -184,36 +196,36 @@ namespace
 			Transform back;
 			back.position = { 0.5f, 0.0f, 3.0f };
 			back.rotation.y = 0.6f;
-			std::array<DirectX::XMFLOAT4X4, 2> transforms;
-			DirectX::XMStoreFloat4x4(&transforms[0], front.GetWorld() * view * projection);
-			DirectX::XMStoreFloat4x4(&transforms[1], back.GetWorld() * view * projection);
+			std::array<RenderObject, 2> transforms;
+			transforms[0] = CreateRenderObject(front.GetWorld(), view * projection).value();
+			transforms[1] = CreateRenderObject(back.GetWorld(), view * projection).value();
 			std::vector<std::uint32_t> clear;
 			std::vector<std::uint32_t> frontOnly;
 			std::vector<std::uint32_t> backOnly;
 			std::vector<std::uint32_t> forward;
 			std::vector<std::uint32_t> reverse;
-			if (!readback.Capture({}, clear))
+			if (!readback.Capture({}, lighting, clear))
 			{
 				return false;
 			}
 
-			if (!readback.Capture(std::span(transforms).first(1), frontOnly))
+			if (!readback.Capture(std::span(transforms).first(1), lighting, frontOnly))
 			{
 				return false;
 			}
 
-			if (!readback.Capture(std::span(transforms).last(1), backOnly))
+			if (!readback.Capture(std::span(transforms).last(1), lighting, backOnly))
 			{
 				return false;
 			}
 
-			if (!readback.Capture(transforms, forward))
+			if (!readback.Capture(transforms, lighting, forward))
 			{
 				return false;
 			}
 
 			std::reverse(transforms.begin(), transforms.end());
-			if (!readback.Capture(transforms, reverse))
+			if (!readback.Capture(transforms, lighting, reverse))
 			{
 				return false;
 			}
@@ -278,7 +290,8 @@ namespace
 	{
 		auto position = [](const SandboxCamera& camera)
 		{
-			return DirectX::XMMatrixInverse(nullptr, camera.GetView()).r[3];
+			const auto stored = camera.GetPosition();
+			return DirectX::XMLoadFloat3(&stored);
 		};
 		auto positionsMatch = [](DirectX::FXMVECTOR left, DirectX::FXMVECTOR right)
 		{
@@ -389,6 +402,12 @@ namespace
 
 int main()
 {
+	if (!CheckLightingData())
+	{
+		std::puts("FAIL: lighting control or transform contract");
+		return 1;
+	}
+
 	ImageData texture;
 	if (!CheckImageLoading(texture))
 	{
@@ -515,6 +534,11 @@ int main()
 			return 1;
 		}
 
+		if (!CheckPhongLighting(renderer))
+		{
+			return 1;
+		}
+
 		constexpr Size sizes[] = {
 			{ 1280, 720 },
 			{ 640, 480 },
@@ -545,14 +569,14 @@ int main()
 			// 두 슬롯에서 0→1→3→9개를 사용해 확장·재사용·빈 목록을 검증한다.
 			constexpr std::size_t counts[] = { 0, 1, 3, 9 };
 			const std::size_t count = counts[(renderedFrames / 2) % 4];
-			std::array<DirectX::XMFLOAT4X4, 9> transforms;
+			std::array<RenderObject, 9> transforms;
 			for (std::size_t index = 0; index < count; ++index)
 			{
 				Transform object;
 				object.position = { static_cast<float>(index) * 0.3f, 0.0f, static_cast<float>(index) * 0.5f };
 				object.rotation = { angle * 0.5f, angle, 0.0f };
 				object.scale = { 0.5f, 0.8f, 0.6f };
-				DirectX::XMStoreFloat4x4(&transforms[index], object.GetWorld() * view * projection);
+				transforms[index] = CreateRenderObject(object.GetWorld(), view * projection).value();
 			}
 
 			if ((renderedFrames % 2) != 0)
@@ -561,7 +585,11 @@ int main()
 			}
 
 			++renderedFrames;
-			return renderer.Render(std::span<const DirectX::XMFLOAT4X4>(transforms.data(), count));
+			FrameLighting lighting;
+			DirectX::XMStoreFloat3(&lighting.direction, DirectX::XMVector3Normalize(
+				DirectX::XMVectorSet(std::sin(angle), -1.0f, std::cos(angle), 0.0f)));
+			lighting.intensity = 0.2f + static_cast<float>(renderedFrames % 10) * 0.1f;
+			return renderer.Render(std::span<const RenderObject>(transforms.data(), count), lighting);
 		};
 
 		for (auto size : sizes)

@@ -109,6 +109,8 @@
     <ClCompile Include="AssetLoader.cpp" />
     <ClInclude Include="AssetLoader.h" />
     <ClInclude Include="ImageData.h" />
+    <ClInclude Include="RenderData.h" />
+    <ClInclude Include="SandboxLighting.h" />
     <ClCompile Include="SandboxApp.cpp" />
     <ClCompile Include="Win32Window.cpp" />
     <ClInclude Include="pch.h" />

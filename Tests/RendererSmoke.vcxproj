@@ -39,11 +39,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="RendererSmoke.cpp" />
+    <ClCompile Include="LightingChecks.cpp" />
+    <ClInclude Include="LightingChecks.h" />
     <ClInclude Include="RendererReadback.h" />
     <ClCompile Include="../Sandbox/D3D12Renderer.cpp" />
     <ClCompile Include="../Sandbox/AssetLoader.cpp" />
     <ClInclude Include="../Sandbox/AssetLoader.h" />
     <ClInclude Include="../Sandbox/ImageData.h" />
+    <ClInclude Include="../Sandbox/RenderData.h" />
+    <ClInclude Include="../Sandbox/SandboxLighting.h" />
   </ItemGroup>
   <Import Project="../Sandbox/CubeShaders.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
