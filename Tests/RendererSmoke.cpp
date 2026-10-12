@@ -1,9 +1,12 @@
 // 별도 콘솔 테스트이므로 PCH 없이 컴파일한다.
+#include "AssetLoader.h"
 #include "D3D12Renderer.h"
+#include "ImageData.h"
 #include "RendererReadback.h"
 #include "SandboxCamera.h"
 #include "Transform.h"
 
+// Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
 #include <DirectXMath.h>
 #include <d3d12.h>
@@ -18,13 +21,134 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <ios>
 #include <span>
+#include <utility>
 #include <vector>
 
 using Microsoft::WRL::ComPtr;
 
 namespace
 {
+	constexpr std::array<std::uint8_t, 36> TEXTURE_PIXELS = {
+		240, 32, 16, 255, 16, 224, 48, 255, 32, 48, 240, 255,
+		224, 192, 16, 255, 128, 128, 128, 128, 16, 192, 224, 255,
+		192, 16, 224, 255, 64, 96, 128, 255, 224, 224, 224, 255
+	};
+
+	// 성공 시 image를 교체하고 실패 시 유지한다.
+	bool CheckImageLoading(ImageData& image)
+	{
+		const auto assetDirectory = GetExecutableDirectory();
+		if (FAILED(assetDirectory.result))
+		{
+			return false;
+		}
+
+		const auto directory = assetDirectory.directory / L"Assets";
+		auto loaded = LoadPngImage(directory / L"TextureTest.png");
+		if (FAILED(loaded.result))
+		{
+			std::printf("FAIL: PNG loading HRESULT=0x%08lX\n", static_cast<unsigned long>(loaded.result));
+			return false;
+		}
+
+		const bool pixelsMatch = std::equal(
+			loaded.image.pixels.begin(), loaded.image.pixels.end(),
+			TEXTURE_PIXELS.begin(), TEXTURE_PIXELS.end());
+		if (loaded.image.width != 3 || loaded.image.height != 3 || !pixelsMatch)
+		{
+			return false;
+		}
+
+		const auto missing = LoadPngImage(directory / L"MissingTexture.png");
+		if (SUCCEEDED(missing.result) || !missing.image.pixels.empty())
+		{
+			return false;
+		}
+
+		const auto corruptPath = directory / L"CorruptTexture.png";
+		{
+			std::ofstream stream(corruptPath, std::ios::binary);
+			stream << "invalid PNG";
+			if (!stream)
+			{
+				return false;
+			}
+		}
+
+		const auto corrupt = LoadPngImage(corruptPath);
+		std::filesystem::remove(corruptPath);
+		if (SUCCEEDED(corrupt.result) || !corrupt.image.pixels.empty())
+		{
+			return false;
+		}
+
+		image = std::move(loaded.image);
+		std::puts("PNG: 3x3 RGBA8 bytes, missing and corrupt file checks passed");
+		return true;
+	}
+
+	bool CheckTextureFaces(D3D12Renderer& renderer)
+	{
+		if (!renderer.Resize(192, 192))
+		{
+			return false;
+		}
+
+		RendererReadback readback{ renderer };
+		constexpr std::array<DirectX::XMFLOAT3, 6> eyes = {
+			DirectX::XMFLOAT3{ 0, 0, -5 }, { 0, 0, 5 }, { -5, 0, 0 },
+			{ 5, 0, 0 }, { 0, 5, 0 }, { 0, -5, 0 }
+		};
+		constexpr std::array<DirectX::XMFLOAT3, 6> upVectors = {
+			DirectX::XMFLOAT3{ 0, 1, 0 }, { 0, 1, 0 }, { 0, 1, 0 },
+			{ 0, 1, 0 }, { 0, 0, 1 }, { 0, 0, -1 }
+		};
+		for (std::size_t face = 0; face < eyes.size(); ++face)
+		{
+			const auto view = DirectX::XMMatrixLookAtLH(
+				DirectX::XMLoadFloat3(&eyes[face]),
+				DirectX::XMVectorZero(),
+				DirectX::XMLoadFloat3(&upVectors[face]));
+			// 화면의 반 픽셀 이동으로 3x3 텍셀 중심과 readback 픽셀 중심을 일치시킨다.
+			const auto projection = DirectX::XMMatrixOrthographicLH(4, 4, 0.1f, 10) *
+				DirectX::XMMatrixTranslation(1.0f / 192, -1.0f / 192, 0);
+			std::array<DirectX::XMFLOAT4X4, 1> transforms;
+			DirectX::XMStoreFloat4x4(&transforms[0], view * projection);
+			std::vector<std::uint32_t> pixels;
+			if (!readback.Capture(transforms, pixels))
+			{
+				return false;
+			}
+
+			for (UINT row = 0; row < 3; ++row)
+			{
+				for (UINT column = 0; column < 3; ++column)
+				{
+					const auto pixel = pixels[(64 + row * 32) * 192 + 64 + column * 32];
+					for (UINT channel = 0; channel < 4; ++channel)
+					{
+						const int actual = (pixel >> (channel * 8)) & 0xff;
+						const int expected = channel == 3 ? 255 : TEXTURE_PIXELS[(row * 3 + column) * 4 + channel];
+						if (std::abs(actual - expected) > 1)
+						{
+							std::printf(
+								"FAIL: texture face=%zu row=%u col=%u channel=%u actual=%d expected=%d\n",
+								face, row, column, channel, actual, expected);
+							return false;
+						}
+					}
+				}
+			}
+		}
+
+		std::puts("Texture: 6 faces, UV orientation, upload row padding, sRGB and opaque alpha checks passed");
+		return true;
+	}
+
 	struct Size
 	{
 		UINT width;
@@ -265,6 +389,13 @@ namespace
 
 int main()
 {
+	ImageData texture;
+	if (!CheckImageLoading(texture))
+	{
+		std::puts("FAIL: image decoding or error contracts");
+		return 1;
+	}
+
 	if (!CheckTransform())
 	{
 		std::puts("FAIL: Transform identity or scale-rotation-translation order");
@@ -299,12 +430,15 @@ int main()
 		}
 
 		D3D12Renderer renderer;
-		if (!renderer.Initialize(window.GetHandle(), 1280, 720))
+		if (!renderer.Initialize(window.GetHandle(), 1280, 720, texture))
 		{
 			return 1;
 		}
 
-		// 아직 제출하지 않은 상태의 전체 대기는 자원을 건드리지 않아야 한다.
+		// Initialize 이후 CPU 픽셀을 해제해도 GPU 텍스처와 디스크립터는 렌더러가 유지한다.
+		texture = {};
+
+		// 초기 업로드 완료 이후 반복 전체 대기는 자원을 건드리지 않아야 한다.
 		if (!renderer.WaitForGpu())
 		{
 			return 1;
@@ -367,6 +501,11 @@ int main()
 		}
 
 		if (FAILED(device.As(&messages)))
+		{
+			return 1;
+		}
+
+		if (!CheckTextureFaces(renderer))
 		{
 			return 1;
 		}

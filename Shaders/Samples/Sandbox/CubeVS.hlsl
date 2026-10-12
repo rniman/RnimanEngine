@@ -7,19 +7,19 @@ cbuffer ObjectConstants : register(b0)
 struct VertexInput
 {
 	float3 position : POSITION;
-	float4 color : COLOR;
+	float2 uv : TEXCOORD;
 };
 
 struct PixelInput
 {
 	float4 position : SV_POSITION;
-	float4 color : COLOR;
+	float2 uv : TEXCOORD;
 };
 
 PixelInput Main(VertexInput input)
 {
 	PixelInput output;
 	output.position = mul(float4(input.position, 1.0f), worldViewProjection);
-	output.color = input.color;
+	output.uv = input.uv;
 	return output;
 }

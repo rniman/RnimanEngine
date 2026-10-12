@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ImageData.h"
+
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
 #include <DirectXMath.h>
@@ -10,7 +12,7 @@
 #include <array>
 #include <span>
 
-/// @brief UI 스레드에서 사용하는 색상 큐브 렌더러. 창은 앱이 소유한다.
+/// @brief UI 스레드에서 사용하는 텍스처 큐브 렌더러. 창은 앱이 소유한다.
 /// @note Initialize는 한 번만 호출한다. 실패 후에는 재사용하지 않고 파괴한다.
 class D3D12Renderer
 {
@@ -23,7 +25,9 @@ public:
 
 	/// @brief 렌더러보다 오래 유지되는 window와 양수 클라이언트 크기로 초기화한다.
 	/// @return 실패 시 false. API와 HRESULT를 보고하며 부분 자원은 소멸 시 정리한다.
-	[[nodiscard]] bool Initialize(HWND window, UINT width, UINT height);
+	/// @param texture sRGB BaseColor RGBA8. 호출 중 복사하며 참조를 저장하지 않는다.
+	/// @note 이미지 크기는 각 축 1~16384, pixels는 width * height * 4바이트여야 한다.
+	[[nodiscard]] bool Initialize(HWND window, UINT width, UINT height, const ImageData& texture);
 
 	/// @brief 초기화 성공 후 호출한다. 사용할 프레임 자원이 실행 중일 때만 재사용을 기다린다.
 	/// @param transforms 큐브별 World * View * Projection. 호출 중 복사하며 참조를 저장하지 않는다.
@@ -51,6 +55,7 @@ private:
 	[[nodiscard]] bool CreateBackBuffers();
 	[[nodiscard]] bool CreateCubePipeline();
 	[[nodiscard]] bool CreateCubeGeometry();
+	[[nodiscard]] bool CreateTexture(const ImageData& image);
 	[[nodiscard]] bool CreateDepthBuffer();
 
 	// 성공 시 resource를 교체하고 실패 시 유지한다. 기존 자원의 GPU 사용 완료는 호출자가 보장한다.
@@ -83,6 +88,11 @@ private:
 	D3D12_VERTEX_BUFFER_VIEW mVertexBufferView{};
 	Microsoft::WRL::ComPtr<ID3D12Resource> mIndexBuffer;
 	D3D12_INDEX_BUFFER_VIEW mIndexBufferView{};
+
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvHeap;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mTexture;
+	// GPU 완료 확인 실패 시에도 소멸자의 완료 시도까지 업로드 메모리를 유지한다.
+	Microsoft::WRL::ComPtr<ID3D12Resource> mTextureUpload;
 
 	Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
 	HANDLE mFenceEvent = nullptr;

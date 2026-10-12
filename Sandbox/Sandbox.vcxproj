@@ -65,7 +65,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;windowscodecs.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Manifest>
@@ -92,7 +92,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;windowscodecs.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Manifest>
@@ -106,6 +106,9 @@
     <ClInclude Include="Transform.h" />
     <ClInclude Include="Win32Window.h" />
     <ClCompile Include="D3D12Renderer.cpp" />
+    <ClCompile Include="AssetLoader.cpp" />
+    <ClInclude Include="AssetLoader.h" />
+    <ClInclude Include="ImageData.h" />
     <ClCompile Include="SandboxApp.cpp" />
     <ClCompile Include="Win32Window.cpp" />
     <ClInclude Include="pch.h" />
@@ -116,6 +119,12 @@
   </ItemGroup>
   <Import Project="CubeShaders.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopySandboxTexture" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true'">
+    <Error Condition="!Exists('$(EngineRoot)Assets\BrickWall17_MR_1K\BrickWall17_1K_BaseColor.png')"
+           Text="Required texture missing: Assets/BrickWall17_MR_1K/BrickWall17_1K_BaseColor.png. Prepare the local asset as described in README.md." />
+    <Copy SourceFiles="$(EngineRoot)Assets\BrickWall17_MR_1K\BrickWall17_1K_BaseColor.png"
+          DestinationFolder="$(OutDir)Assets\BrickWall17_MR_1K" SkipUnchangedFiles="true" />
+  </Target>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>

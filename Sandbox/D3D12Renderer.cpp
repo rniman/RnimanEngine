@@ -1,6 +1,10 @@
 #include "pch.h"
 #include "D3D12Renderer.h"
 
+#include "AssetLoader.h"
+#include "ImageData.h"
+
+// Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
 #include <DirectXMath.h>
 #include <d3d12.h>
@@ -27,30 +31,48 @@ namespace
 	struct Vertex
 	{
 		float position[3];
-		float color[4];
+		float uv[2];
 	};
 
 	constexpr DXGI_FORMAT BACK_BUFFER_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
+	constexpr DXGI_FORMAT COLOR_VIEW_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	constexpr DXGI_FORMAT DEPTH_BUFFER_FORMAT = DXGI_FORMAT_D32_FLOAT;
+	// 면별로 정점을 분리한다. UV는 좌상 (0, 0), 우하 (1, 1)이다.
 	constexpr Vertex CUBE_VERTICES[] = {
-		{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } },
-		{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-		{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 1.0f, 0.0f, 1.0f } },
-		{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-		{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
-		{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f, 1.0f } },
-		{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f } },
-		{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f, 1.0f } }
+		{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 1.0f } },
+		{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f } },
+		{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f } },
+		{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f } },
+		{ { 1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f } },
+		{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
+		{ { -1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
+		{ { -1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f } },
+		{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f } },
+		{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
+		{ { -1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f } },
+		{ { -1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f } },
+		{ { 1.0f, -1.0f, -1.0f }, { 0.0f, 1.0f } },
+		{ { 1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f } },
+		{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
+		{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f } },
+		{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f } },
+		{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
+		{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
+		{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 1.0f } },
+		{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f } },
+		{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f } },
+		{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f } },
+		{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f } }
 	};
 
 	// 외부에서 볼 때 화면에서 시계 방향인 면을 앞면으로 사용한다.
 	constexpr std::uint16_t CUBE_INDICES[] = {
 		0, 1, 2, 0, 2, 3,
-		4, 6, 5, 4, 7, 6,
-		4, 5, 1, 4, 1, 0,
-		3, 2, 6, 3, 6, 7,
-		1, 5, 6, 1, 6, 2,
-		4, 0, 3, 4, 3, 7
+		4, 5, 6, 4, 6, 7,
+		8, 9, 10, 8, 10, 11,
+		12, 13, 14, 12, 14, 15,
+		16, 17, 18, 16, 18, 19,
+		20, 21, 22, 20, 22, 23
 	};
 }
 
@@ -88,11 +110,20 @@ bool D3D12Renderer::CheckResult(HRESULT result, const wchar_t* operation) const
 	return false;
 }
 
-bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height)
+bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height, const ImageData& texture)
 {
 	if (window == nullptr || width == 0 || height == 0 || mFactory)
 	{
 		return CheckResult(E_INVALIDARG, L"D3D12Renderer::Initialize");
+	}
+
+	// 제한 이후의 RGBA8 크기 계산은 x64 size_t 범위에 들어간다.
+	if (texture.width == 0 || texture.height == 0 ||
+		texture.width > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
+		texture.height > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
+		texture.pixels.size() != static_cast<std::size_t>(texture.width) * texture.height * 4)
+	{
+		return CheckResult(E_INVALIDARG, L"Initialize: invalid RGBA8 texture dimensions or pixel count");
 	}
 
 	UINT factoryFlags = 0;
@@ -305,26 +336,19 @@ bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height)
 		return false;
 	}
 
-	return true;
+	return CreateTexture(texture);
 }
 
 bool D3D12Renderer::CreateCubePipeline()
 {
 	// 작업 디렉터리와 무관하게 실행 파일과 함께 배치된 CSO를 읽는다.
-	std::wstring executablePath(32768, L'\0');
-	DWORD length = GetModuleFileNameW(nullptr, executablePath.data(), static_cast<DWORD>(executablePath.size()));
-	if (length == 0)
+	const auto assetDirectory = GetExecutableDirectory();
+	if (!CheckResult(assetDirectory.result, L"GetModuleFileNameW"))
 	{
-		return CheckResult(HRESULT_FROM_WIN32(GetLastError()), L"GetModuleFileNameW");
+		return false;
 	}
 
-	if (length >= executablePath.size())
-	{
-		return CheckResult(HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER), L"GetModuleFileNameW(path too long)");
-	}
-
-	executablePath.resize(length);
-	const auto shaderDirectory = std::filesystem::path(executablePath).parent_path() / L"Shaders";
+	const auto shaderDirectory = assetDirectory.directory / L"Shaders";
 	const auto vertexPath = shaderDirectory / L"CubeVS.cso";
 	const auto pixelPath = shaderDirectory / L"CubePS.cso";
 	ComPtr<ID3DBlob> vertexShader;
@@ -341,13 +365,35 @@ bool D3D12Renderer::CreateCubePipeline()
 		return false;
 	}
 
-	D3D12_ROOT_PARAMETER transformParameter{};
-	transformParameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-	transformParameter.Descriptor.ShaderRegister = 0;
-	transformParameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	D3D12_DESCRIPTOR_RANGE textureRange{};
+	textureRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	textureRange.NumDescriptors = 1;
+	textureRange.BaseShaderRegister = 0;
+	textureRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	D3D12_ROOT_PARAMETER parameters[2]{};
+	parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	parameters[0].Descriptor.ShaderRegister = 0;
+	parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+	parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	parameters[1].DescriptorTable.NumDescriptorRanges = 1;
+	parameters[1].DescriptorTable.pDescriptorRanges = &textureRange;
+	parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	D3D12_STATIC_SAMPLER_DESC sampler{};
+	// 단일 밉과 선형 필터를 사용하며 면 끝에서 반대편 픽셀을 섞지 않는다.
+	sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	sampler.MaxAnisotropy = 1;
+	sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	sampler.MaxLOD = D3D12_FLOAT32_MAX;
+	sampler.ShaderRegister = 0;
+	sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	D3D12_ROOT_SIGNATURE_DESC rootDescription{};
-	rootDescription.NumParameters = 1;
-	rootDescription.pParameters = &transformParameter;
+	rootDescription.NumParameters = static_cast<UINT>(std::size(parameters));
+	rootDescription.pParameters = parameters;
+	rootDescription.NumStaticSamplers = 1;
+	rootDescription.pStaticSamplers = &sampler;
 	rootDescription.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	ComPtr<ID3DBlob> serializedRoot;
 	ComPtr<ID3DBlob> errors;
@@ -383,8 +429,8 @@ bool D3D12Renderer::CreateCubePipeline()
 			0, offsetof(Vertex, position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 		},
 		{
-			"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT,
-			0, offsetof(Vertex, color), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+			"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
+			0, offsetof(Vertex, uv), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 		}
 	};
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline{};
@@ -396,7 +442,7 @@ bool D3D12Renderer::CreateCubePipeline()
 	pipeline.SampleMask = std::numeric_limits<UINT>::max();
 	pipeline.SampleDesc.Count = 1;
 	pipeline.NumRenderTargets = 1;
-	pipeline.RTVFormats[0] = BACK_BUFFER_FORMAT;
+	pipeline.RTVFormats[0] = COLOR_VIEW_FORMAT;
 	pipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 	pipeline.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
 	pipeline.RasterizerState.DepthClipEnable = TRUE;
@@ -447,6 +493,124 @@ bool D3D12Renderer::CreateUploadBuffer(UINT64 size, ComPtr<ID3D12Resource>& reso
 	}
 
 	resource = std::move(created);
+	return true;
+}
+
+bool D3D12Renderer::CreateTexture(const ImageData& image)
+{
+	D3D12_DESCRIPTOR_HEAP_DESC descriptors{};
+	descriptors.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	descriptors.NumDescriptors = 1;
+	descriptors.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	if (!CheckResult(
+		mDevice->CreateDescriptorHeap(&descriptors, IID_PPV_ARGS(&mSrvHeap)),
+		L"CreateDescriptorHeap(texture SRV)"))
+	{
+		return false;
+	}
+
+	D3D12_HEAP_PROPERTIES heap{};
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+	D3D12_RESOURCE_DESC texture{};
+	texture.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	texture.Width = image.width;
+	texture.Height = image.height;
+	texture.DepthOrArraySize = 1;
+	texture.MipLevels = 1;
+	texture.Format = COLOR_VIEW_FORMAT;
+	texture.SampleDesc.Count = 1;
+	if (!CheckResult(
+		mDevice->CreateCommittedResource(
+			&heap,
+			D3D12_HEAP_FLAG_NONE,
+			&texture,
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			nullptr,
+			IID_PPV_ARGS(&mTexture)),
+		L"CreateCommittedResource(texture)"))
+	{
+		return false;
+	}
+
+	D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
+	UINT64 uploadBytes = 0;
+	mDevice->GetCopyableFootprints(&texture, 0, 1, 0, &footprint, nullptr, nullptr, &uploadBytes);
+	if (!CreateUploadBuffer(uploadBytes, mTextureUpload))
+	{
+		return false;
+	}
+
+	void* mapped = nullptr;
+	const D3D12_RANGE readRange{ 0, 0 };
+	if (!CheckResult(mTextureUpload->Map(0, &readRange, &mapped), L"TextureUpload::Map"))
+	{
+		return false;
+	}
+
+	// WIC의 촘촘한 행을 D3D12의 256바이트 RowPitch에 맞춰 복사한다.
+	const std::size_t rowBytes = static_cast<std::size_t>(image.width) * 4;
+	for (UINT row = 0; row < image.height; ++row)
+	{
+		const auto destination = static_cast<std::byte*>(mapped) + footprint.Offset +
+			static_cast<std::size_t>(row) * footprint.Footprint.RowPitch;
+		std::memcpy(
+			destination,
+			image.pixels.data() + row * rowBytes,
+			rowBytes);
+	}
+
+	const D3D12_RANGE writtenRange{ 0, static_cast<SIZE_T>(uploadBytes) };
+	mTextureUpload->Unmap(0, &writtenRange);
+
+	if (!CheckResult(mFrames[0].commandAllocator->Reset(), L"CommandAllocator::Reset(texture upload)"))
+	{
+		return false;
+	}
+
+	if (!CheckResult(
+		mCommandList->Reset(mFrames[0].commandAllocator.Get(), nullptr),
+		L"CommandList::Reset(texture upload)"))
+	{
+		return false;
+	}
+
+	D3D12_TEXTURE_COPY_LOCATION destination{};
+	destination.pResource = mTexture.Get();
+	destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+	D3D12_TEXTURE_COPY_LOCATION source{};
+	source.pResource = mTextureUpload.Get();
+	source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+	source.PlacedFootprint = footprint;
+	mCommandList->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
+
+	D3D12_RESOURCE_BARRIER barrier{};
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Transition.pResource = mTexture.Get();
+	barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+	barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	mCommandList->ResourceBarrier(1, &barrier);
+	if (!CheckResult(mCommandList->Close(), L"CommandList::Close(texture upload)"))
+	{
+		return false;
+	}
+
+	ID3D12CommandList* lists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(1, lists);
+	mGpuWorkPending = true;
+	// 초기화에서만 전체 완료를 기다린다. 실패하면 업로드 자원도 소멸자까지 유지한다.
+	if (!WaitForGpu())
+	{
+		return false;
+	}
+
+	mTextureUpload.Reset();
+	D3D12_SHADER_RESOURCE_VIEW_DESC view{};
+	view.Format = COLOR_VIEW_FORMAT;
+	view.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	view.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	view.Texture2D.MipLevels = 1;
+	mDevice->CreateShaderResourceView(mTexture.Get(), &view, mSrvHeap->GetCPUDescriptorHandleForHeapStart());
 	return true;
 }
 
@@ -536,7 +700,10 @@ bool D3D12Renderer::CreateBackBuffers()
 			return false;
 		}
 
-		mDevice->CreateRenderTargetView(mBackBuffers[index].Get(), nullptr, handle);
+		D3D12_RENDER_TARGET_VIEW_DESC view{};
+		view.Format = COLOR_VIEW_FORMAT;
+		view.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+		mDevice->CreateRenderTargetView(mBackBuffers[index].Get(), &view, handle);
 		handle.ptr += mRtvStride;
 	}
 
@@ -632,6 +799,9 @@ bool D3D12Renderer::RenderInternal(std::span<const DirectX::XMFLOAT4X4> transfor
 	};
 	const D3D12_RECT scissor{ 0, 0, static_cast<LONG>(mWidth), static_cast<LONG>(mHeight) };
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+	ID3D12DescriptorHeap* heaps[] = { mSrvHeap.Get() };
+	mCommandList->SetDescriptorHeaps(1, heaps);
+	mCommandList->SetGraphicsRootDescriptorTable(1, mSrvHeap->GetGPUDescriptorHandleForHeapStart());
 	mCommandList->RSSetViewports(1, &viewport);
 	mCommandList->RSSetScissorRects(1, &scissor);
 	mCommandList->OMSetRenderTargets(1, &renderTargetHandle, FALSE, &depthHandle);

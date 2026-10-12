@@ -34,14 +34,21 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;windowscodecs.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="RendererSmoke.cpp" />
     <ClInclude Include="RendererReadback.h" />
     <ClCompile Include="../Sandbox/D3D12Renderer.cpp" />
+    <ClCompile Include="../Sandbox/AssetLoader.cpp" />
+    <ClInclude Include="../Sandbox/AssetLoader.h" />
+    <ClInclude Include="../Sandbox/ImageData.h" />
   </ItemGroup>
   <Import Project="../Sandbox/CubeShaders.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyTextureFixture" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true'">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Assets\TextureTest.png"
+          DestinationFolder="$(OutDir)Assets" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

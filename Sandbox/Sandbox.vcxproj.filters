@@ -3,6 +3,9 @@
   <ItemGroup>
     <ClInclude Include="D3D12Renderer.h" />
     <ClCompile Include="D3D12Renderer.cpp" />
+    <ClCompile Include="AssetLoader.cpp" />
+    <ClInclude Include="AssetLoader.h" />
+    <ClInclude Include="ImageData.h" />
     <ClInclude Include="pch.h" />
     <ClCompile Include="Main.cpp" />
     <ClInclude Include="SandboxApp.h" />

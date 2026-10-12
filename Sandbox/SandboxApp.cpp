@@ -1,19 +1,24 @@
 #include "pch.h"
 #include "SandboxApp.h"
 
+#include "AssetLoader.h"
 #include "D3D12Renderer.h"
 #include "SandboxCamera.h"
 #include "Transform.h"
 #include "Win32Window.h"
 
-#include <DirectXMath.h>
+// Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
+#include <DirectXMath.h>
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <cwchar>
+#include <filesystem>
+#include <string>
 
 SandboxApp::SandboxApp(HINSTANCE instance)
 	: mWindow{ instance }
@@ -27,12 +32,40 @@ bool SandboxApp::Initialize(int showCommand)
 		return false;
 	}
 
+	const auto assetDirectory = GetExecutableDirectory();
+	if (FAILED(assetDirectory.result))
+	{
+		wchar_t message[256]{};
+		swprintf_s(
+			message,
+			L"GetModuleFileNameW failed. HRESULT: 0x%08lX",
+			static_cast<unsigned long>(assetDirectory.result));
+		OutputDebugStringW(message);
+		MessageBoxW(mWindow.GetHandle(), message, L"Sandbox asset error", MB_OK | MB_ICONERROR);
+		return false;
+	}
+
+	const auto path = assetDirectory.directory / L"Assets" / L"BrickWall17_MR_1K" /
+		L"BrickWall17_1K_BaseColor.png";
+	const auto loaded = LoadPngImage(path);
+	if (FAILED(loaded.result))
+	{
+		wchar_t errorCode[32]{};
+		swprintf_s(errorCode, L"0x%08lX", static_cast<unsigned long>(loaded.result));
+		const std::wstring message = std::wstring(loaded.operation) + L" failed. HRESULT: " + errorCode +
+			L"\nPath: " + path.wstring();
+		OutputDebugStringW(message.c_str());
+		MessageBoxW(mWindow.GetHandle(), message.c_str(), L"Sandbox asset error", MB_OK | MB_ICONERROR);
+		return false;
+	}
+
 	const auto& state = mWindow.GetState();
 	// 최소화 상태로 시작해도 GPU 자원은 양수 크기로 초기화한다.
 	return mRenderer.Initialize(
 		mWindow.GetHandle(),
 		state.width == 0 ? 1280 : state.width,
-		state.height == 0 ? 720 : state.height);
+		state.height == 0 ? 720 : state.height,
+		loaded.image);
 }
 
 int SandboxApp::Run(int showCommand)
