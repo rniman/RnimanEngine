@@ -4,12 +4,12 @@
 
 ## 현재 프로젝트와 코드
 
-2026-10-07 기준, [솔루션](../RnimanEngine.slnx)에는 대표 앱 하나와 자동 검증용 실행 프로젝트 두 개가 있다. 세 프로젝트는 x64 Debug·Release를 지원한다.
+2026-10-12 기준, [솔루션](../RnimanEngine.slnx)에는 대표 앱 하나와 자동 검증용 실행 프로젝트 두 개가 있다. 세 프로젝트는 x64 Debug·Release를 지원한다.
 
 | 프로젝트 | 역할과 빌드 대상 |
 |---|---|
 | [Sandbox](../Sandbox/Sandbox.vcxproj) | 창·입력·카메라·큐브·렌더러를 연결하는 대표 데모. 아래 Sandbox 구현 파일과 큐브 셰이더를 빌드 |
-| [RendererSmoke](../Tests/RendererSmoke.vcxproj) | Transform·카메라 수학, 깊이 가림 픽셀, 리사이즈·GPU 동기화 검증. 실제 `D3D12Renderer.cpp`와 큐브 셰이더를 함께 빌드 |
+| [RendererSmoke](../Tests/RendererSmoke.vcxproj) | PNG CPU 로딩·여섯 면 텍스처 픽셀, Transform·카메라 수학, 깊이 가림 픽셀, 리사이즈·GPU 동기화 검증. 실제 `D3D12Renderer.cpp`·`AssetLoader.cpp`와 큐브 셰이더를 함께 빌드 |
 | [WindowSmoke](../Tests/WindowSmoke.vcxproj) | 창 수명·Win32 메시지·입력 소비·리사이즈 요청 검증. 실제 `Win32Window.cpp`를 함께 빌드하며 렌더러·셰이더는 사용하지 않음 |
 
 Smoke 프로젝트는 테스트 전용 진입점을 가진 실행 파일이다. Sandbox가 참조하는 라이브러리가 아니며 앱 실행·배포에 포함할 필요가 없다. 솔루션 빌드가 테스트를 실행하지는 않는다. 실행 명령과 검사 범위는 [자동 검증](development.md#자동-검증)을 따른다.
@@ -23,6 +23,8 @@ RnimanEngine/
 │  ├─ Main.cpp                   # wWinMain 진입점
 │  ├─ SandboxApp.h / .cpp        # 앱 실행·데모 갱신과 자원 수명
 │  ├─ Win32Window.h / .cpp       # 창·메시지·입력 수집
+│  ├─ AssetLoader.h / .cpp      # EXE 기준 경로·WIC PNG CPU 디코딩
+│  ├─ ImageData.h               # CPU RGBA8 이미지
 │  ├─ D3D12Renderer.h / .cpp     # D3D12 자원·명령·동기화
 │  ├─ SandboxCamera.h           # Sandbox 카메라 이동·회전
 │  ├─ Transform.h               # 오브젝트 변환·World 행렬
@@ -30,14 +32,17 @@ RnimanEngine/
 │  └─ CubeShaders.props         # Sandbox·RendererSmoke 공용 빌드 설정
 ├─ Tests/
 │  ├─ RendererSmoke.vcxproj / RendererSmoke.cpp / RendererReadback.h
+│  ├─ Assets/TextureTest.png    # Git에 포함하는 작은 기준 이미지
 │  └─ WindowSmoke.vcxproj / WindowSmoke.cpp
 ├─ Shaders/Samples/Sandbox/
 │  ├─ CubeVS.hlsl
 │  └─ CubePS.hlsl
+├─ Assets/                    # 전체 Git 제외, 별도 준비하는 로컬 에셋
+│  └─ BrickWall17_MR_1K/
 └─ docs/
 ```
 
-SandboxApp이 창 → 렌더러 순으로 초기화하고 렌더러 → 창 순으로 정리한다. Win32Window는 입력을 수집하고 앱이 프레임마다 소비하며, D3D12Renderer는 전달받은 WVP를 렌더 호출 중 복사한다. 상세 진입점·데이터 흐름과 수명 제약은 [개발 문서](development.md#진입점과-수명)에서 관리한다. 현재 공용 Engine 라이브러리와 별도 Scene·Input 계층은 없다.
+SandboxApp이 창 → CPU PNG 디코딩 → 렌더러·텍스처 업로드 순으로 초기화하고 렌더러 → 창 순으로 정리한다. Win32Window는 입력을 수집하고 앱이 프레임마다 소비하며, D3D12Renderer는 초기화 중 CPU RGBA8 이미지를 복사하고 GPU 완료까지 업로드 메모리를 유지하며, 전달받은 WVP를 렌더 호출 중 복사한다. 상세 진입점·데이터 흐름과 수명 제약은 [개발 문서](development.md#진입점과-수명)에서 관리한다. 현재 공용 Engine 라이브러리와 별도 Scene·Input 계층은 없다.
 
 ## 향후 확장 구조
 
@@ -81,8 +86,9 @@ RnimanEngine/
 
 | 대상 | 관리 기준 |
 |---|---|
-| 원본·기준 에셋, HLSL·HLSLI, 변환 설정 | Git 관리 대상. 대용량 에셋의 구체적인 보관 방식은 도입 시 결정 |
-| Unity 기준 `.bin`, 직접 준비한 DDS | 재현에 필요한 기준 에셋이면 관리 대상. 확장자만으로 제외하지 않음 |
+| 로컬 원본 `Assets/` | 저장소 루트 폴더 전체를 Git 제외. 실행에 필요한 파일은 별도 준비 |
+| 테스트 기준 에셋, HLSL·HLSLI, 변환 설정 | Git 관리 대상. 테스트 이미지는 `Tests/Assets/`에 보관 |
+| Unity 기준 `.bin`, 직접 준비한 DDS | 재현에 필요한 기준 에셋의 추적 위치·별도 보관 방식은 도입 시 결정. 확장자만으로 제외하지 않음 |
 | 자동 생성 DDS·CSO | 원본과 설정으로 재생성. 실행 결과는 `bin`, 공용 재사용 결과는 도입 시 `Cache`에 배치 |
 | OBJ·PCH·빌드 추적 파일 | `obj/<프로젝트>/<구성>`에 배치 |
 | `bin/`, `obj/`, `Cache/` | 생성 결과로 취급하여 Git 제외. `Cache/` 제외 규칙은 캐시 도입과 함께 추가 |
@@ -102,7 +108,7 @@ RnimanEngine/
 ## 현재 설정과 적용 순서
 
 1. Sandbox·RendererSmoke·WindowSmoke의 출력은 `bin/<프로젝트>/<구성>`, 중간 산출물은 `obj/<프로젝트>/<구성>`으로 적용했다. 세 프로젝트 모두 x64로 유지한다.
-2. Sandbox 디버거 작업 디렉터리는 `$(OutDir)`로 적용했다. 큐브 CSO는 EXE 기준으로 로딩하며 Sandbox·RendererSmoke 빌드가 각 출력 폴더에 직접 생성한다. 일반 에셋 로더·복사 규칙은 해당 기능을 도입할 때 연결한다.
+2. Sandbox 디버거 작업 디렉터리는 `$(OutDir)`로 적용했다. 큐브 CSO는 EXE 기준으로 로딩하며 Sandbox·RendererSmoke 빌드가 각 출력 폴더에 직접 생성한다. PNG 경로도 EXE 기준이다. Sandbox는 로컬 BaseColor만, RendererSmoke는 자체 기준 PNG만 EXE 옆 `Assets/`에 복사한다. 벽돌 원본 폴더는 사용자 요청의 Git 제외 예외이며 새 체크아웃에서는 별도로 준비한다.
 3. 추가 프로젝트·에셋·셰이더는 해당 기능을 구현할 때 연결한다. 루트의 `Directory.Build.props`를 자동으로 읽어 저장소 기준 출력 경로를 사용한다. 프로젝트별 `..` 개수에 의존하지 않는다.
 4. 출력 경로·파일 배치를 바꾸면 관련 문서와 제외 규칙을 맞추고, 영향받는 앱의 빌드 및 Visual Studio·EXE 직접 실행을 확인한다.
 
