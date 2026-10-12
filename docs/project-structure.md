@@ -9,7 +9,7 @@
 | 프로젝트 | 역할과 빌드 대상 |
 |---|---|
 | [Sandbox](../Sandbox/Sandbox.vcxproj) | 창·입력·카메라·큐브·렌더러를 연결하는 대표 데모. 아래 Sandbox 구현 파일과 큐브 셰이더를 빌드 |
-| [RendererSmoke](../Tests/RendererSmoke.vcxproj) | PNG CPU 로딩·여섯 면 텍스처 픽셀, Transform·카메라 수학, 깊이 가림 픽셀, 리사이즈·GPU 동기화 검증. 실제 `D3D12Renderer.cpp`·`AssetLoader.cpp`와 큐브 셰이더를 함께 빌드 |
+| [RendererSmoke](../Tests/RendererSmoke.vcxproj) | PNG CPU 로딩·여섯 면 텍스처·Phong 픽셀, 조명 조작·Transform·카메라 수학, 깊이 가림 픽셀, 리사이즈·GPU 동기화 검증. 실제 `D3D12Renderer.cpp`·`AssetLoader.cpp`와 큐브 셰이더를 함께 빌드 |
 | [WindowSmoke](../Tests/WindowSmoke.vcxproj) | 창 수명·Win32 메시지·입력 소비·리사이즈 요청 검증. 실제 `Win32Window.cpp`를 함께 빌드하며 렌더러·셰이더는 사용하지 않음 |
 
 Smoke 프로젝트는 테스트 전용 진입점을 가진 실행 파일이다. Sandbox가 참조하는 라이브러리가 아니며 앱 실행·배포에 포함할 필요가 없다. 솔루션 빌드가 테스트를 실행하지는 않는다. 실행 명령과 검사 범위는 [자동 검증](development.md#자동-검증)을 따른다.
@@ -25,13 +25,16 @@ RnimanEngine/
 │  ├─ Win32Window.h / .cpp       # 창·메시지·입력 수집
 │  ├─ AssetLoader.h / .cpp      # EXE 기준 경로·WIC PNG CPU 디코딩
 │  ├─ ImageData.h               # CPU RGBA8 이미지
+│  ├─ RenderData.h              # 오브젝트 행렬·프레임 조명과 렌더 데이터 생성
 │  ├─ D3D12Renderer.h / .cpp     # D3D12 자원·명령·동기화
 │  ├─ SandboxCamera.h           # Sandbox 카메라 이동·회전
+│  ├─ SandboxLighting.h         # Sandbox 방향광 각도·강도 조절
 │  ├─ Transform.h               # 오브젝트 변환·World 행렬
 │  ├─ pch.h / .cpp              # Sandbox PCH
 │  └─ CubeShaders.props         # Sandbox·RendererSmoke 공용 빌드 설정
 ├─ Tests/
 │  ├─ RendererSmoke.vcxproj / RendererSmoke.cpp / RendererReadback.h
+│  ├─ LightingChecks.h / .cpp  # 조명 CPU 계약·GPU 픽셀 검증
 │  ├─ Assets/TextureTest.png    # Git에 포함하는 작은 기준 이미지
 │  └─ WindowSmoke.vcxproj / WindowSmoke.cpp
 ├─ Shaders/Samples/Sandbox/
@@ -42,7 +45,7 @@ RnimanEngine/
 └─ docs/
 ```
 
-SandboxApp이 창 → CPU PNG 디코딩 → 렌더러·텍스처 업로드 순으로 초기화하고 렌더러 → 창 순으로 정리한다. Win32Window는 입력을 수집하고 앱이 프레임마다 소비하며, D3D12Renderer는 초기화 중 CPU RGBA8 이미지를 복사하고 GPU 완료까지 업로드 메모리를 유지하며, 전달받은 WVP를 렌더 호출 중 복사한다. 상세 진입점·데이터 흐름과 수명 제약은 [개발 문서](development.md#진입점과-수명)에서 관리한다. 현재 공용 Engine 라이브러리와 별도 Scene·Input 계층은 없다.
+SandboxApp이 창 → CPU PNG 디코딩 → 렌더러·텍스처 업로드 순으로 초기화하고 렌더러 → 창 순으로 정리한다. Win32Window는 입력을 수집하고 앱이 프레임마다 소비하며, D3D12Renderer는 초기화 중 CPU RGBA8 이미지를 복사하고 GPU 완료까지 업로드 메모리를 유지하며, 전달받은 오브젝트 행렬·프레임 조명을 렌더 호출 중 복사한다. 앱이 카메라·조명 상태와 입력을 해석하고, RenderData가 GPU 자원 없이 WVP·World·역전치 법선 행렬을 만든다. 상세 진입점·데이터 흐름과 수명 제약은 [개발 문서](development.md#진입점과-수명)에서 관리한다. 현재 공용 Engine 라이브러리와 별도 Scene·Input 계층은 없다.
 
 ## 향후 확장 구조
 
