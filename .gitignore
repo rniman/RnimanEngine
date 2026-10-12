@@ -22,6 +22,9 @@ ipch/
 # Local learning notes
 /docs/memo/
 
+# Local assets (prepared separately; see README)
+/Assets/
+
 # Engine build directories (do not hide third-party bin/x64 folders)
 /bin/
 /obj/
@@ -61,6 +64,6 @@ _UpgradeReport_Files/
 UpgradeLog*.XML
 UpgradeLog*.htm
 
-# Keep Unity .meta, OBJ models, bin/DDS assets, shader sources and
+# Outside /Assets, keep Unity .meta, OBJ models, bin/DDS assets, shader sources and
 # third-party .lib/.dll/.exe files eligible for version control.
 # Add asset-cache directories only after their locations are defined.
