@@ -4,28 +4,9 @@ D3D12 기반의 미니 게임 엔진. 장면 구성, 입력, 게임 로직, 렌�
 
 ## 현재 상태
 
-2026-10-12 기준, Sandbox에서 위치·크기가 다른 벽돌 텍스처 큐브 3개가 각각 Y·X·Z축으로 회전한다.
+**첫 마일스톤 달성:** 직접 정의한 메시·텍스처·카메라·기본 Phong 조명을 연결한 Sandbox 데모를 문서의 절차로 빌드·실행할 수 있다. 위치·크기가 다른 큐브 3개를 렌더링하며 카메라와 방향광을 조절한다.
 
-- Sandbox 전용 카메라에 키보드 이동·마우스 회전을 연결했다.
-- 창 수명·Win32 메시지·입력 수집은 `Win32Window`, 실행 루프·카메라·큐브 갱신은 `SandboxApp`으로 분리했다. Main은 앱을 생성하고 실행한다.
-- BaseColor PNG를 Windows WIC로 RGBA8 디코딩한 뒤 Default Heap 텍스처에 업로드한다. 면별 UV·sRGB SRV/RTV·선형 Clamp Sampler를 사용한다.
-- 방향광 1개와 월드 공간 Phong의 Ambient·Diffuse·Specular를 계산한다. 조명 방향·강도는 키보드로 조절한다.
-- 큐브는 면별 정점 24개와 인덱스 36개의 고정 메시를 공유하며 오브젝트별 Transform과 World·View·Projection 행렬을 사용한다.
-- D32 깊이 버퍼로 가림을 처리하고, 전체 창 Viewport와 현재 종횡비의 투영 행렬을 사용한다.
-- 프레임별 Command Allocator·Constant Buffer·Fence를 관리하며 리사이즈·종료 시 전체 GPU 작업을 기다린다.
-
-2026-10-12 기본 조명 구현 후 x64 Debug·Release 세 프로젝트 빌드와 RendererSmoke·WindowSmoke를 통과했다. 여섯 면의 법선·선형 색상, 카메라 위치에 따른 반사광·광택 지수, 강도 0·Ambient, 비균일 Scale·전단의 법선 변환과 기존 PNG·텍스처·가림을 검증했다. 잘못된 가림 픽셀과 자동 검사의 D3D12 오류·경고는 0건이다. 실제 Sandbox 두 구성의 합성 조명 키 입력·포커스 해제·크기 변경·정상 종료와 실제 에셋의 GPU readback 시각 결과를 확인했다. 실제 창 화면·장치 입력·F5는 이번에 확인하지 않았다. 상세 범위와 제약은 [최신 검증 결과](docs/development.md#최신-검증-결과)를 따른다.
-
-직접 정의한 메시·텍스처·카메라·기본 조명 데모를 연결했다. 다음 단계는 일반 오브젝트 방식과 ECS 비교다. **첫 마일스톤은 메시·텍스처·카메라·기본 조명을 사용하는 데모를 문서대로 다시 실행할 수 있는 상태**다. 범용 장면·Transform 계층·카메라 시스템, ECS, Unity 익스포터·로더, PBR은 아직 구현하지 않았다. 단계별 목표는 [로드맵](docs/roadmap.md)에서 관리한다.
-
-## 좌표축과 행렬 요약
-
-- 월드 위쪽은 `+Y`, 회전하지 않은 카메라의 전방은 `+Z`, 오른쪽은 `+X`다. View·Projection은 왼손(`LH`) 규약이며, 회전한 카메라의 전방은 월드 `+Z`와 다르다.
-- CPU는 행 우선(row-major)으로 저장하고 행 벡터 `p * M`으로 계산한다. **저장 순서·곱셈 방향·좌표계의 좌우수성은 별개**다.
-- `World = S * R * T`, `WVP = World * View * Projection`. HLSL은 `row_major`와 `mul(position, matrix)`를 사용하므로 전달용 전치를 하지 않는다. 법선의 World 역전치는 별도의 수학적 변환이다.
-- 회전 값은 radian이며 `rotation.x/y/z`는 pitch/yaw/roll이다. 로컬 오브젝트의 정면 축·물리적 거리 단위는 아직 정하지 않았다.
-
-공간·패킹·검증 범위는 [좌표축과 행렬 계약](docs/development.md#좌표축과-행렬)을 따른다.
+다음 단계는 일반 오브젝트 방식과 ECS 비교다. ECS·Unity 익스포터/로더·PBR은 아직 구현하지 않았다. [로드맵](docs/roadmap.md) · [Architecture와 좌표계 규약](docs/design.md) · [첫 마일스톤 기록](docs/milestones/v0.1.0-sandbox.md)을 참고한다.
 
 ## 카메라 조작
 
@@ -76,9 +57,11 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 | 문서 | 내용 |
 |---|---|
 | [개발 목표와 순서](docs/roadmap.md) | 기능 범위, 단계별 완료 기준과 첫 마일스톤 |
-| [엔진 설계](docs/design.md) | 장면·ECS·렌더러 책임, 소유권·수명, Unity 데이터 규격 |
+| [엔진 설계](docs/design.md) | 현재 좌표계·실행·렌더링 계약과 장면·ECS·Unity 설계 방향 |
 | [프로젝트와 공유 자원 구조](docs/project-structure.md) | 현재 코드·검증 프로젝트의 역할, 향후 확장 구조와 공유 자원·출력 배치 |
 | [외부 라이브러리와 에셋 처리](docs/dependencies.md) | 도입 후보·제외 대상, 텍스처 변환과 DDS 캐시 |
-| [개발 설정과 검증](docs/development.md) | 적용 컨벤션, 컴파일·PCH·Git 설정, 검증 기준·기록과 제약 |
+| [개발 설정과 검증](docs/development.md) | 현재 컨벤션 적용 상태, 개발 설정과 검증 실행 방법 |
+
+[마일스톤 목록](docs/milestones/README.md)에서 태그별 달성 범위·검증 결과·당시 제약을 확인한다.
 
 작업 전 [컨벤션 적용 기준과 적용 상태](docs/development.md#컨벤션)를 확인한다. 위키를 컨벤션 확인·적용의 기준으로 사용하며, 컨벤션 확인 시점과 프로젝트의 선택·예외·적용 상태는 해당 문서에서 관리한다. 위키의 프로젝트 문서 갱신과 반영 상태 관리는 위키 정비 담당이 맡는다. 저장소의 에이전트 지침 파일은 [AGENTS.md](AGENTS.md)다.

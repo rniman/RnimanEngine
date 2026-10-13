@@ -45,7 +45,7 @@ RnimanEngine/
 └─ docs/
 ```
 
-SandboxApp이 창 → CPU PNG 디코딩 → 렌더러·텍스처 업로드 순으로 초기화하고 렌더러 → 창 순으로 정리한다. Win32Window는 입력을 수집하고 앱이 프레임마다 소비하며, D3D12Renderer는 초기화 중 CPU RGBA8 이미지를 복사하고 GPU 완료까지 업로드 메모리를 유지하며, 전달받은 오브젝트 행렬·프레임 조명을 렌더 호출 중 복사한다. 앱이 카메라·조명 상태와 입력을 해석하고, RenderData가 GPU 자원 없이 WVP·World·역전치 법선 행렬을 만든다. 상세 진입점·데이터 흐름과 수명 제약은 [개발 문서](development.md#진입점과-수명)에서 관리한다. 현재 공용 Engine 라이브러리와 별도 Scene·Input 계층은 없다.
+SandboxApp이 창 → CPU PNG 디코딩 → 렌더러·텍스처 업로드 순으로 초기화하고 렌더러 → 창 순으로 정리한다. Win32Window는 입력을 수집하고 앱이 프레임마다 소비하며, D3D12Renderer는 초기화 중 CPU RGBA8 이미지를 복사하고 GPU 완료까지 업로드 메모리를 유지하며, 전달받은 오브젝트 행렬·프레임 조명을 렌더 호출 중 복사한다. 앱이 카메라·조명 상태와 입력을 해석하고, RenderData가 GPU 자원 없이 WVP·World·역전치 법선 행렬을 만든다. 상세 진입점·데이터 흐름과 수명 제약은 [Architecture](design.md#진입점과-수명)에서 관리한다. 현재 공용 Engine 라이브러리와 별도 Scene·Input 계층은 없다.
 
 ## 향후 확장 구조
 
