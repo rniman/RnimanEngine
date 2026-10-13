@@ -81,6 +81,24 @@ Resize는 동일 크기·0 크기를 무시하고 전체 GPU 대기 후 백 버�
 
 ## 큐브 렌더링 계약
 
+### 좌표축과 행렬
+
+| 항목 | 현재 Sandbox 계약 |
+|---|---|
+| 월드·로컬 | 월드 위쪽 `+Y`. 무회전 기준 오른쪽 `+X`·전방 `+Z`. 큐브의 의미상 로컬 정면 축과 물리적 거리 단위는 미정이며 외부 에셋 도입 시 결정 |
+| 뷰 | `XMMatrixLookToLH`, 뷰 앞쪽 `+Z`. 카메라 전방은 yaw·pitch로 계산하며 월드 축은 회전하지 않음 |
+| 투영·화면 | `XMMatrixPerspectiveFovLH`, near 0.1·far 100. 원근 나눗셈 후 NDC의 X/Y는 −1~1·Z는 0~1. 화면은 왼쪽 위 원점·오른쪽 +X·아래쪽 +Y |
+| 벡터·합성 | 행 벡터 `p * M`. `World = S * R * T`, `WVP = World * View * Projection` |
+| 저장·전달 | `XMStoreFloat4x4`의 행 우선 저장 → HLSL `row_major float4x4` → `mul(position, matrix)`. 패킹용 전치 없음 |
+| 법선 | World 역전치의 3×3 부분으로 변환. 이 전치는 법선 변환에 필요하며 전달용 전치와 구분 |
+| 회전 | `rotation.x/y/z`는 pitch(X)/yaw(Y)/roll(Z), 단위 radian. `XMMatrixRotationRollPitchYaw` 사용 |
+
+행 우선은 **저장 순서**, 행 벡터는 **곱셈 방향**, 왼손은 **축의 방향 관계**다. 하나로 나머지를 추정하지 않는다. Direct3D 자체가 월드 축이나 왼손 좌표계를 강제하는 것은 아니며, 현재 카메라·투영 구현에 맞춘 프로젝트 선택이다. 앞면·깊이·GPU 레이아웃은 아래 계약을 따른다.
+
+2026-10-13 [위키 채택 규칙](https://rniman.github.io/convention/coding/coordinates-and-matrices/) 확인을 시도했으나 공개 baseline 조회가 실패하여 `D:/Docs/Convention/docs/baseline.md`와 `coding/coordinates-and-matrices.md`를 임시 참고했다. 공개 배포본과의 일치는 미확인이다. 기존 Transform·카메라·RenderData·CubeVS의 구현을 확인해 위 요약과 README에 반영했으며 코드 변경·새로운 시험 적용·성능 예외는 없다. 로컬 정면·거리 단위·외부 에셋 변환은 실제 에셋 사용 흐름이 생길 때 계약을 정한다. 공통화할 새 코드 후보는 없다.
+
+이번에는 문서·소스 대응과 링크·diff만 검사했다. 기존 CPU/GPU 검증 결과는 아래 기록을 유지하며 빌드·실행·시각 검증을 반복하지 않았다. 채택 규칙이 요구하는 실제 CubeVS의 reflection/어셈블리 패킹 확인은 이번에 수행하지 않았으므로 적용 완료로 주장하지 않으며, 다음 셰이더·렌더 데이터 변경 시 크기·offset·행렬 stride를 CPU 선언과 대조한다.
+
 ### 메시·행렬·렌더 데이터
 
 면별 위치·UV·법선 정점 24개와 `R16_UINT` 인덱스 36개의 고정 Upload Heap 메시를 공유한다. 왼손 View·Projection, 시계 방향 앞면·뒷면 컬링·전체 창 Viewport를 사용한다. D32 깊이는 매 프레임 1로 지우며 LESS·깊이 쓰기를 사용한다.
