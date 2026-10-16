@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <limits>
+#include <optional>
 #include <vector>
 
 namespace
@@ -72,7 +73,7 @@ namespace
 bool CheckLightingData()
 {
 	SandboxLighting lighting;
-	const auto initial = lighting.GetDirection();
+	const DirectX::XMFLOAT3 initial = lighting.GetDirection();
 	SandboxLighting stepped;
 	for (int index = 0; index < 10; ++index)
 	{
@@ -81,8 +82,8 @@ bool CheckLightingData()
 		stepped.Adjust(1.0f, 0.5f, 0.25f, 0.05f);
 	}
 
-	const auto direction = lighting.GetDirection();
-	const auto splitDirection = stepped.GetDirection();
+	const DirectX::XMFLOAT3 direction = lighting.GetDirection();
+	const DirectX::XMFLOAT3 splitDirection = stepped.GetDirection();
 	if (!DirectX::XMVector3NearEqual(
 		DirectX::XMLoadFloat3(&direction),
 		DirectX::XMLoadFloat3(&splitDirection),
@@ -95,7 +96,7 @@ bool CheckLightingData()
 	}
 
 	lighting.Adjust(-1.0f, -1.0f, -1.0f, 0.0f);
-	const auto unchanged = lighting.GetDirection();
+	const DirectX::XMFLOAT3 unchanged = lighting.GetDirection();
 	if (!DirectX::XMVector3Equal(DirectX::XMLoadFloat3(&direction), DirectX::XMLoadFloat3(&unchanged)))
 	{
 		return false;
@@ -106,7 +107,7 @@ bool CheckLightingData()
 		lighting.Adjust(1.0f, 1.0f, 1.0f, 0.1f);
 	}
 
-	const auto upper = lighting.GetDirection();
+	const DirectX::XMFLOAT3 upper = lighting.GetDirection();
 	if (lighting.GetIntensity() != 2.0f || upper.y >= 1.0f || upper.y < 0.99f ||
 		std::abs(DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(DirectX::XMLoadFloat3(&upper))) - 1.0f) > 0.0001f)
 	{
@@ -119,33 +120,34 @@ bool CheckLightingData()
 		lighting.Adjust(-1.0f, -1.0f, -1.0f, 0.1f);
 	}
 
-	const auto lower = lighting.GetDirection();
+	const DirectX::XMFLOAT3 lower = lighting.GetDirection();
 	if (lighting.GetIntensity() != 0.0f || lower.y <= -1.0f || lower.y > -0.99f)
 	{
 		return false;
 	}
 
 	lighting.Reset();
-	const auto reset = lighting.GetDirection();
+	const DirectX::XMFLOAT3 reset = lighting.GetDirection();
 	if (lighting.GetIntensity() != 0.8f ||
 		!DirectX::XMVector3Equal(DirectX::XMLoadFloat3(&initial), DirectX::XMLoadFloat3(&reset)))
 	{
 		return false;
 	}
 
-	auto shear = DirectX::XMMatrixIdentity();
+	DirectX::XMMATRIX shear = DirectX::XMMatrixIdentity();
 	shear.r[2] = DirectX::XMVectorSet(0.5f, 0.0f, 1.0f, 0.0f);
-	const auto world = DirectX::XMMatrixScaling(1.4f, 0.7f, 0.9f) * shear *
+	const DirectX::XMMATRIX world = DirectX::XMMatrixScaling(1.4f, 0.7f, 0.9f) * shear *
 		DirectX::XMMatrixRotationY(0.4f) * DirectX::XMMatrixTranslation(3.0f, 2.0f, 1.0f);
-	const auto object = CreateRenderObject(world, DirectX::XMMatrixIdentity());
-	if (!object)
+	const std::optional<ObjectTransformConstants> constantsResult = BuildObjectTransformConstants(
+		world, DirectX::XMMatrixIdentity());
+	if (!constantsResult)
 	{
 		return false;
 	}
 
-	const auto normal = DirectX::XMVector3TransformNormal(
-		DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f), DirectX::XMLoadFloat4x4(&object->normalTransform));
-	const auto tangent = DirectX::XMVector3TransformNormal(
+	const DirectX::XMVECTOR normal = DirectX::XMVector3TransformNormal(
+		DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f), DirectX::XMLoadFloat4x4(&constantsResult->normalTransform));
+	const DirectX::XMVECTOR tangent = DirectX::XMVector3TransformNormal(
 		DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), world);
 	if (std::abs(DirectX::XMVectorGetX(DirectX::XMVector3Dot(normal, tangent))) > 0.0001f)
 	{
@@ -153,12 +155,12 @@ bool CheckLightingData()
 		return false;
 	}
 
-	const auto identity = DirectX::XMMatrixIdentity();
-	auto invalid = identity;
+	const DirectX::XMMATRIX identity = DirectX::XMMatrixIdentity();
+	DirectX::XMMATRIX invalid = identity;
 	invalid.r[0] = DirectX::XMVectorSet(std::numeric_limits<float>::quiet_NaN(), 0.0f, 0.0f, 0.0f);
-	if (CreateRenderObject(DirectX::XMMatrixScaling(0.0f, 1.0f, 1.0f), identity) ||
-		CreateRenderObject(DirectX::XMMatrixScaling(-1.0f, 1.0f, 1.0f), identity) ||
-		CreateRenderObject(invalid, identity))
+	if (BuildObjectTransformConstants(DirectX::XMMatrixScaling(0.0f, 1.0f, 1.0f), identity) ||
+		BuildObjectTransformConstants(DirectX::XMMatrixScaling(-1.0f, 1.0f, 1.0f), identity) ||
+		BuildObjectTransformConstants(invalid, identity))
 	{
 		std::puts("FAIL: invalid world matrices accepted");
 		return false;
@@ -166,7 +168,7 @@ bool CheckLightingData()
 
 	invalid = identity;
 	invalid.r[0] = DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.5f);
-	if (CreateRenderObject(invalid, identity) || CreateRenderObject(identity,
+	if (BuildObjectTransformConstants(invalid, identity) || BuildObjectTransformConstants(identity,
 		DirectX::XMMatrixScaling(std::numeric_limits<float>::infinity(), 1.0f, 1.0f)))
 	{
 		return false;
@@ -185,7 +187,7 @@ bool CheckPhongLighting(D3D12Renderer& renderer)
 
 	RendererReadback readback{ renderer };
 	const auto ambient = CreateAmbientLighting();
-	const auto projection = DirectX::XMMatrixOrthographicLH(4.0f, 4.0f, 0.1f, 10.0f) *
+	const DirectX::XMMATRIX projection = DirectX::XMMatrixOrthographicLH(4.0f, 4.0f, 0.1f, 10.0f) *
 		DirectX::XMMatrixTranslation(1.0f / 192, -1.0f / 192, 0.0f);
 	constexpr std::array<DirectX::XMFLOAT3, 6> eyes = {
 		DirectX::XMFLOAT3{ 0.0f, 0.0f, -5.0f }, { 0.0f, 0.0f, 5.0f }, { -5.0f, 0.0f, 0.0f },
@@ -197,12 +199,12 @@ bool CheckPhongLighting(D3D12Renderer& renderer)
 	};
 	for (std::size_t face = 0; face < eyes.size(); ++face)
 	{
-		const auto view = DirectX::XMMatrixLookAtLH(
+		const DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
 			DirectX::XMLoadFloat3(&eyes[face]),
 			DirectX::XMVectorZero(),
 			DirectX::XMLoadFloat3(&upVectors[face]));
-		const std::array<RenderObject, 1> objects = {
-			CreateRenderObject(DirectX::XMMatrixIdentity(), view * projection).value()
+		const std::array<ObjectTransformConstants, 1> objects = {
+			BuildObjectTransformConstants(DirectX::XMMatrixIdentity(), view * projection).value()
 		};
 		std::vector<std::uint32_t> baseline;
 		std::vector<std::uint32_t> lit;
@@ -236,12 +238,12 @@ bool CheckPhongLighting(D3D12Renderer& renderer)
 	}
 
 	// 이동한 표면을 사용해 local 위치를 specular 계산에 잘못 전달하는 경우도 구별한다.
-	const auto view = DirectX::XMMatrixLookAtLH(
+	const DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
 		DirectX::XMVectorSet(0.75f, 0.5f, -3.0f, 1.0f),
 		DirectX::XMVectorSet(0.75f, 0.5f, 2.0f, 1.0f),
 		DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-	const std::array<RenderObject, 1> objects = {
-		CreateRenderObject(DirectX::XMMatrixTranslation(0.75f, 0.5f, 2.0f), view * projection).value()
+	const std::array<ObjectTransformConstants, 1> objects = {
+		BuildObjectTransformConstants(DirectX::XMMatrixTranslation(0.75f, 0.5f, 2.0f), view * projection).value()
 	};
 	std::vector<std::uint32_t> baseline;
 	if (!readback.Capture(objects, ambient, baseline))
@@ -316,16 +318,20 @@ bool CheckPhongLighting(D3D12Renderer& renderer)
 	}
 
 	// 큐브의 축 법선은 단순 S*R만으로는 잘못된 World 변환과 구별되지 않아 전단도 넣는다.
-	auto shear = DirectX::XMMatrixIdentity();
+	DirectX::XMMATRIX shear = DirectX::XMMatrixIdentity();
 	shear.r[2] = DirectX::XMVectorSet(0.5f, 0.0f, 1.0f, 0.0f);
-	const auto world = DirectX::XMMatrixScaling(1.4f, 0.7f, 0.9f) * shear * DirectX::XMMatrixRotationY(0.4f);
-	const auto faceCenter = DirectX::XMVector3TransformCoord(DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f), world);
-	const auto normal = DirectX::XMVectorSet(-std::sin(0.4f), 0.0f, -std::cos(0.4f), 0.0f);
-	const auto shearedView = DirectX::XMMatrixLookAtLH(
+	const DirectX::XMMATRIX world = DirectX::XMMatrixScaling(1.4f, 0.7f, 0.9f) * shear *
+		DirectX::XMMatrixRotationY(0.4f);
+	const DirectX::XMVECTOR faceCenter = DirectX::XMVector3TransformCoord(
+		DirectX::XMVectorSet(0.0f, 0.0f, -1.0f, 1.0f), world);
+	const DirectX::XMVECTOR normal = DirectX::XMVectorSet(-std::sin(0.4f), 0.0f, -std::cos(0.4f), 0.0f);
+	const DirectX::XMMATRIX shearedView = DirectX::XMMatrixLookAtLH(
 		DirectX::XMVectorAdd(faceCenter, DirectX::XMVectorScale(normal, 5.0f)),
 		faceCenter,
 		DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-	const std::array<RenderObject, 1> shearedObjects = { CreateRenderObject(world, shearedView * projection).value() };
+	const std::array<ObjectTransformConstants, 1> shearedObjects = {
+		BuildObjectTransformConstants(world, shearedView * projection).value()
+	};
 	DirectX::XMStoreFloat3(&lighting.direction, DirectX::XMVectorNegate(normal));
 	lighting.intensity = 0.5f;
 	lighting.specularStrength = 0.0f;

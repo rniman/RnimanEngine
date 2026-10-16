@@ -105,13 +105,13 @@ Resize는 동일 크기·0 크기를 무시하고 전체 GPU 대기 후 백 버�
 
 면별 위치·UV·법선 정점 24개와 `R16_UINT` 인덱스 36개의 고정 Upload Heap 메시를 공유한다. 왼손 View·Projection, 시계 방향 앞면·뒷면 컬링·전체 창 Viewport를 사용한다. D32 깊이는 매 프레임 1로 지우며 LESS·깊이 쓰기를 사용한다.
 
-앱이 [RenderData](../Sandbox/RenderData.h)의 `CreateRenderObject`로 WVP·World·World 역전치를 만든다. 유한한 아핀 World·양수 행렬식·유한한 역행렬/WVP를 요구하며 위반은 nullopt다. 반전 Transform의 컬링 보정은 없다. CPU는 행 벡터 행렬을 저장하고 [CubeVS](../Shaders/Samples/Sandbox/CubeVS.hlsl)는 `row_major`·`mul(position, matrix)`로 전치 없이 읽는다. 법선은 역전치의 3×3 부분으로 변환하고 PS에서 정규화한다.
+`SandboxApp::Render`가 [RenderData](../Sandbox/RenderData.h)의 `BuildObjectTransformConstants`로 매 프레임 WVP·World·World 역전치를 계산한다. 결과인 `ObjectTransformConstants`는 오브젝트별 셰이더 변환 상수이며 장면 오브젝트나 GPU 자원을 생성하지 않는다. 유한한 아핀 World·양수 행렬식·유한한 역행렬/WVP를 요구하며 위반은 nullopt다. 반전 Transform의 컬링 보정은 없다. CPU는 행 벡터 행렬을 저장하고 [CubeVS](../Shaders/Samples/Sandbox/CubeVS.hlsl)는 `row_major`·`mul(position, matrix)`로 전치 없이 읽는다. 법선은 역전치의 3×3 부분으로 변환하고 PS에서 정규화한다.
 
-`Render(std::span<const RenderObject>, const FrameLighting&)`는 입력을 호출 중 복사하고 참조를 보관하지 않는다. RenderObject 192바이트·FrameLighting 64바이트와 필드 offset을 static_assert로 확인한다. CB의 첫 256바이트는 PS b1, 이후 오브젝트마다 256바이트는 VS b0다. 빈 목록도 프레임 값을 기록하고 clear·Present하며 버퍼 크기 오버플로·생성 실패는 보고한다.
+`Render(std::span<const ObjectTransformConstants>, const FrameLighting&)`는 입력을 호출 중 복사하고 참조를 보관하지 않는다. ObjectTransformConstants 192바이트·FrameLighting 64바이트와 필드 offset을 static_assert로 확인한다. CB의 첫 256바이트는 PS b1, 이후 오브젝트마다 256바이트는 VS b0다. 빈 목록도 프레임 값을 기록하고 clear·Present하며 버퍼 크기 오버플로·생성 실패는 보고한다.
 
 ### 텍스처·sRGB
 
-`SandboxApp::Initialize` → EXE 기준 경로 → [AssetLoader](../Sandbox/AssetLoader.cpp)의 `LoadPngImage` → CPU [ImageData](../Sandbox/ImageData.h) → `D3D12Renderer::CreateTexture` 순서다.
+`SandboxApp::Initialize` → EXE 위치 + [SourcePaths.props](../Sandbox/SourcePaths.props)가 빌드 시 전달한 저장소 루트 경로 → 루트 `Assets/`의 PNG → [AssetLoader](../Sandbox/AssetLoader.cpp)의 `LoadPngImage` → CPU [ImageData](../Sandbox/ImageData.h) → `D3D12Renderer::CreateTexture` 순서다. Debug·Release는 같은 원본을 읽으며 파일 복사·원본 쓰기·런타임 상위 폴더 검색은 하지 않는다. 셰이더 CSO는 계속 EXE 옆에서 읽는다. RendererSmoke는 같은 빌드 설정으로 `Tests/Assets/`를 직접 읽고 손상 파일은 테스트 EXE 옆에만 만든다.
 
 - WIC가 단일 프레임 PNG를 위→아래, 행 패딩 없는 RGBA8로 디코딩한다. 크기·UINT 산술 범위·프레임 수를 검사하며 실패는 빈 이미지·HRESULT·API 이름으로 반환한다. 앱이 전체 경로와 함께 표시한다. STA 초기화 성공 횟수만 정리하며 기존 MTA는 실패한다. ICC 변환·EXIF 회전은 적용하지 않고 BaseColor를 sRGB로 간주한다.
 - 렌더러는 각 축 1~16384와 `pixels.size() == width * height * 4`를 요구한다. 단일 밉 Default Heap 텍스처에 `GetCopyableFootprints`의 RowPitch로 행별 복사하고 COPY_DEST→PIXEL_SHADER_RESOURCE로 전환한다. 첫 사용 전 GPU 완료 후 Upload Heap을 해제한다. 대기 실패 시 업로드 자원을 멤버에 유지해 소멸자의 완료 시도까지 보존한다.
@@ -129,8 +129,8 @@ Resize는 동일 크기·0 크기를 무시하고 전체 GPU 대기 후 백 버�
 
 ## 구현 선택과 후속 조건
 
-- `ImageLoadResult`·`AssetDirectoryResult`는 이름 있는 구조체로 데이터·오류를 구분한다. `RenderObject`·`FrameLighting`은 공개 데이터, `SandboxLighting`은 각도·강도 조건을 보호하는 값 클래스이며 Rule of Zero를 따른다. `ComApartment`는 복사·이동을 금지해 COM 초기화 횟수를 중복 정리하지 않는다.
-- 실제 소비자인 앱·테스트가 EXE 기준 경로 계산과 `CreateRenderObject`를 공유한다. 렌더러는 호출 중 입력을 복사하고 참조를 보관하지 않는다. GPU 실패 시 수명과 정리는 위 실행·렌더링 계약을 따른다.
+- `ImageLoadResult`·`ExecutableDirectoryResult`는 이름 있는 구조체로 데이터·오류를 구분한다. `ObjectTransformConstants`·`FrameLighting`은 공개 데이터, `SandboxLighting`은 각도·강도 조건을 보호하는 값 클래스이며 Rule of Zero를 따른다. `ComApartment`는 복사·이동을 금지해 COM 초기화 횟수를 중복 정리하지 않는다.
+- 실제 소비자인 앱·테스트가 EXE 기준 경로 계산과 `BuildObjectTransformConstants`를 공유한다. 렌더러는 호출 중 입력을 복사하고 참조를 보관하지 않는다. GPU 실패 시 수명과 정리는 위 실행·렌더링 계약을 따른다.
 - CPU 복사 크기·span 인덱스는 `std::size_t`, D3D12 크기·Fence·출력 인자는 API 타입을 유지한다. 크기 산술 범위를 검사하고 출력 포인터를 다른 정수 타입으로 캐스팅하지 않는다. 고정 배열의 API 전달·Win32/COM 변환은 실제 범위와 객체 계약에 맞춘다.
 - PCH 요구 시 자기 헤더보다 `pch.h`를 먼저 포함한다. 플랫폼 include의 Windows→DirectX 순서는 이유를 주석으로 남기며, 기존 긴 오류 문자열은 포맷 규칙의 문자열 예외를 유지한다.
 - 후속 메시·재질·광원에 실제 공유 수요가 생기면 텍스처 업로드·렌더 데이터·재질 상수 분리를 검토한다. 범용 로더·광원 관리자·자체 자료형 별칭·변환 도우미·ECS는 선행 구현하지 않는다. 채택 기준의 미적용 항목은 확인 범위에서 없다.

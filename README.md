@@ -37,7 +37,9 @@ D3D12 기반의 미니 게임 엔진. 장면 구성, 입력, 게임 로직, 렌�
 Assets/BrickWall17_MR_1K/BrickWall17_1K_BaseColor.png
 ```
 
-저장소 루트의 `Assets/` 전체는 로컬 에셋 보관용으로 Git에서 제외한다. `Tests/Assets/`의 테스트 기준 이미지는 저장소에 포함한다. 새 체크아웃에서도 BaseColor를 별도로 준비해야 하며, 없으면 Sandbox 빌드가 원본 경로와 준비 안내를 표시하고 실패한다. 빌드가 BaseColor 한 장만 EXE 옆의 같은 `Assets/BrickWall17_MR_1K/` 경로에 복사한다. 현재 기준 이미지는 1024×1024 PNG다. 나머지 Normal·Roughness·AO·Height는 사용하지 않는다. DDS·압축·밉맵 생성·변환 캐시는 아직 없다.
+저장소 루트의 `Assets/` 전체는 로컬 에셋 보관용으로 Git에서 제외한다. `Tests/Assets/`의 테스트 기준 이미지는 저장소에 포함한다. 새 체크아웃에서도 BaseColor를 별도로 준비해야 하며, 없으면 Sandbox 빌드가 원본 경로와 준비 안내를 표시하고 실패한다. Sandbox의 Debug·Release는 루트 `Assets/`의 같은 PNG를 직접 읽으며 출력 폴더에 복사하지 않는다. 현재 기준 이미지는 1024×1024 PNG다. 나머지 Normal·Roughness·AO·Height는 사용하지 않는다. DDS·압축·밉맵 생성·변환 캐시는 아직 없다.
+
+공용 경로는 [SourcePaths.props](Sandbox/SourcePaths.props)가 빌드 시 계산하는 EXE→저장소 루트 경로를 사용한다. 실행 중 폴더를 검색하거나 작업 디렉터리에 의존하지 않는다. 배치와 후속 계획은 [개발 실행의 공용 에셋 경로](docs/project-structure.md#개발-실행의-공용-에셋-경로)를 참고한다. 런타임 경로 설정 파일과 독립 배포 패키징은 아직 구현하지 않았다.
 
 저장소 루트의 Developer PowerShell에서:
 
@@ -46,9 +48,11 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Debug -p:Platfor
 MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platform=x64
 ```
 
-솔루션 빌드는 Sandbox와 검증용 RendererSmoke·WindowSmoke를 함께 빌드한다. 테스트 실행은 별도 [검증 명령](docs/development.md#자동-검증)을 따른다. RendererSmoke는 저장소에 포함한 [3×3 기준 PNG](Tests/Assets/TextureTest.png)를 빌드 시 EXE 옆 `Assets/`에 복사하며 벽돌 에셋 없이 별도로 빌드·실행할 수 있다. 실행은 Debug·Release 모두 D3D12 하드웨어와 Graphics Tools가 필요하며, WindowSmoke는 Win32 창·입력만 검사한다. Sandbox 실행·배포에는 두 Smoke 실행 파일이 필요하지 않다.
+솔루션 빌드는 Sandbox와 검증용 RendererSmoke·WindowSmoke를 함께 빌드한다. 테스트 실행은 별도 [검증 명령](docs/development.md#자동-검증)을 따른다. RendererSmoke는 저장소에 포함한 [3×3 기준 PNG](Tests/Assets/TextureTest.png)를 원본 위치에서 직접 읽으며 출력 폴더에 복사하지 않는다. 벽돌 에셋 없이 별도로 빌드·실행할 수 있다. 손상 PNG 검사용 임시 파일은 테스트 EXE 옆에서만 생성·삭제한다. 실행은 Debug·Release 모두 D3D12 하드웨어와 Graphics Tools가 필요하며, WindowSmoke는 Win32 창·입력만 검사한다. Sandbox 실행에는 두 Smoke 실행 파일이 필요하지 않다.
 
-실행 파일은 `bin/Sandbox/<구성>/Sandbox.exe`, 중간 산출물은 `obj/Sandbox/<구성>/`에 생성된다. SDK의 FXC가 `Shaders/Samples/Sandbox/`의 HLSL을 Shader Model 5.0으로 컴파일하여 EXE 옆 `Shaders/CubeVS.cso`와 `Shaders/CubePS.cso`를 만든다. **실행 파일을 옮길 때는 `Shaders`와 `Assets` 폴더도 함께 복사한다.** 로더는 작업 디렉터리와 무관하게 EXE 위치를 기준으로 CSO·PNG를 찾는다. 누락·디코딩 실패 시 경로·API·HRESULT를 표시하고 종료한다. 디버거 작업 디렉터리는 `$(OutDir)`다. `bin/`과 `obj/`는 Git에서 제외한다.
+실행 파일은 `bin/Sandbox/<구성>/Sandbox.exe`, 중간 산출물은 `obj/Sandbox/<구성>/`에 생성된다. SDK의 FXC가 `Shaders/Samples/Sandbox/`의 HLSL을 Shader Model 5.0으로 컴파일하여 EXE 옆 `Shaders/CubeVS.cso`와 `Shaders/CubePS.cso`를 만든다. CSO는 EXE 옆, PNG는 빌드가 지정한 저장소 원본 위치에서 읽는다. 누락·디코딩 실패 시 경로·API·HRESULT를 표시하고 종료하며 EXE 옆의 과거 Assets 복사본으로 대체하지 않는다. 디버거 작업 디렉터리는 `$(OutDir)`다. `bin/`과 `obj/`는 Git에서 제외한다.
+
+현재 실행 파일은 개발용 공용 원본 경로에 의존한다. 기본 출력 배치를 유지한 채 저장소 전체를 옮기면 상대 경로가 유지되지만, EXE와 `Shaders`만 다른 위치로 옮기는 독립 실행은 지원하지 않는다. 출력 위치를 변경하면 다시 빌드하여 원본 경로를 맞춘다. 기존 `bin` 아래 PNG 복사본은 더 이상 읽거나 갱신하지 않는다.
 
 ## 코드와 문서 안내
 

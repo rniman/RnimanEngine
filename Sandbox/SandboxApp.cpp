@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cwchar>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 SandboxApp::SandboxApp(HINSTANCE instance)
@@ -34,22 +35,24 @@ bool SandboxApp::Initialize(int showCommand)
 		return false;
 	}
 
-	const auto assetDirectory = GetExecutableDirectory();
-	if (FAILED(assetDirectory.result))
+	const ExecutableDirectoryResult executableDirectoryResult = GetExecutableDirectory();
+	if (FAILED(executableDirectoryResult.result))
 	{
 		wchar_t message[256]{};
 		swprintf_s(
 			message,
 			L"GetModuleFileNameW failed. HRESULT: 0x%08lX",
-			static_cast<unsigned long>(assetDirectory.result));
+			static_cast<unsigned long>(executableDirectoryResult.result));
 		OutputDebugStringW(message);
 		MessageBoxW(mWindow.GetHandle(), message, L"Sandbox asset error", MB_OK | MB_ICONERROR);
 		return false;
 	}
 
-	const auto path = assetDirectory.directory / L"Assets" / L"BrickWall17_MR_1K" /
-		L"BrickWall17_1K_BaseColor.png";
-	const auto loaded = LoadPngImage(path);
+	// 빌드가 계산한 EXE→저장소 루트 상대 경로를 사용하며 실행용 복사본은 만들지 않는다.
+	const std::filesystem::path assetDirectory =
+		(executableDirectoryResult.directory / RNIMAN_SOURCE_ROOT / L"Assets").lexically_normal();
+	const std::filesystem::path path = assetDirectory / L"BrickWall17_MR_1K" / L"BrickWall17_1K_BaseColor.png";
+	const ImageLoadResult loaded = LoadPngImage(path);
 	if (FAILED(loaded.result))
 	{
 		wchar_t errorCode[32]{};
@@ -61,7 +64,7 @@ bool SandboxApp::Initialize(int showCommand)
 		return false;
 	}
 
-	const auto& state = mWindow.GetState();
+	const Win32Window::State& state = mWindow.GetState();
 	// 최소화 상태로 시작해도 GPU 자원은 양수 크기로 초기화한다.
 	return mRenderer.Initialize(
 		mWindow.GetHandle(),
@@ -77,13 +80,13 @@ int SandboxApp::Run(int showCommand)
 		return 1;
 	}
 
-	const auto& state = mWindow.GetState();
+	const Win32Window::State& state = mWindow.GetState();
 	const auto startTime = std::chrono::steady_clock::now();
 	auto previousTime = startTime;
 
 	while (true)
 	{
-		if (const auto exitCode = mWindow.PumpMessages())
+		if (const std::optional<int> exitCode = mWindow.PumpMessages())
 		{
 			return mRenderer.WaitForGpu() ? *exitCode : 1;
 		}
@@ -108,7 +111,7 @@ int SandboxApp::Run(int showCommand)
 			mWindow.ClearResizeRequest();
 		}
 
-		const auto input = mWindow.ConsumeInput();
+		const Win32Window::InputState input = mWindow.ConsumeInput();
 		const auto now = std::chrono::steady_clock::now();
 		// 모달 창 조작·최소화 이후 경과 시간은 이동에 누적하지 않는다.
 		const float deltaSeconds = input.resetFrameTime ? 0.0f :
@@ -158,19 +161,20 @@ void SandboxApp::Update(const Win32Window::InputState& input, float deltaSeconds
 
 bool SandboxApp::Render()
 {
-	const auto& state = mWindow.GetState();
-	const auto view = mCamera.GetView();
-	const auto projection = DirectX::XMMatrixPerspectiveFovLH(
+	const Win32Window::State& state = mWindow.GetState();
+	const DirectX::XMMATRIX view = mCamera.GetView();
+	const DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(
 		DirectX::XM_PIDIV4,
 		static_cast<float>(state.width) / static_cast<float>(state.height),
 		0.1f,
 		100.0f);
 
-	std::array<RenderObject, 3> objects;
+	std::array<ObjectTransformConstants, 3> objectConstants;
 	for (std::size_t index = 0; index < mObjects.size(); ++index)
 	{
-		const auto object = CreateRenderObject(mObjects[index].GetWorld(), view * projection);
-		if (!object)
+		const std::optional<ObjectTransformConstants> constantsResult = BuildObjectTransformConstants(
+			mObjects[index].GetWorld(), view * projection);
+		if (!constantsResult)
 		{
 			const wchar_t* message = L"Sandbox cube transform is non-finite, singular or reflected.";
 			OutputDebugStringW(message);
@@ -178,12 +182,12 @@ bool SandboxApp::Render()
 			return false;
 		}
 
-		objects[index] = *object;
+		objectConstants[index] = *constantsResult;
 	}
 
 	FrameLighting lighting;
 	lighting.direction = mLighting.GetDirection();
 	lighting.intensity = mLighting.GetIntensity();
 	lighting.cameraPosition = mCamera.GetPosition();
-	return mRenderer.Render(objects, lighting);
+	return mRenderer.Render(objectConstants, lighting);
 }

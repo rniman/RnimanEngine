@@ -22,13 +22,13 @@ public:
 	/// @param seconds 이동에 반영할 시간(초).
 	void Move(float right, float up, float forward, float seconds)
 	{
-		const auto direction = DirectX::XMVectorAdd(
+		const DirectX::XMVECTOR direction = DirectX::XMVectorAdd(
 			DirectX::XMVectorScale(GetForward(), forward),
 			DirectX::XMVectorSet(std::cos(mYaw) * right, up, -std::sin(mYaw) * right, 0.0f));
 		if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(direction)) > 0.0f)
 		{
 			constexpr float moveSpeed = 3.0f;
-			const auto displacement = DirectX::XMVectorScale(
+			const DirectX::XMVECTOR displacement = DirectX::XMVectorScale(
 				DirectX::XMVector3Normalize(direction),
 				moveSpeed * seconds);
 			DirectX::XMStoreFloat3(&mPosition, DirectX::XMVectorAdd(DirectX::XMLoadFloat3(&mPosition), displacement));

@@ -10,7 +10,7 @@
 
 2026-10-12 Sandbox는 Windows SDK의 WIC·COM을 직접 사용한다. [AssetLoader](../Sandbox/AssetLoader.cpp)가 단일 프레임 PNG를 CPU RGBA8로 반환하고 D3D12Renderer가 GPU 업로드를 담당한다. 외부 WICTextureLoader12·DirectXTex 코드는 아직 도입하지 않았다. 링크 의존성은 `windowscodecs.lib`·`ole32.lib`이며 별도 외부 패키지 설치는 없다.
 
-현재 원본은 사용자가 준비한 `Assets/BrickWall17_MR_1K/BrickWall17_1K_BaseColor.png`다. 사용자 요청으로 저장소 루트의 `Assets/` 전체를 Git에서 제외하며, 별도 준비와 빌드 복사·배포 방법은 [README](../README.md#빌드와-실행)를 따른다. 실제 원본의 배포 출처·라이선스는 확인하지 않았다. 테스트 기준 PNG는 직접 작성해 `Tests/Assets/`에 포함한다. DDS·압축·밉맵·변환 캐시는 아래 후속 계획이며 현재 실행에는 적용하지 않았다.
+현재 원본은 사용자가 준비한 `Assets/BrickWall17_MR_1K/BrickWall17_1K_BaseColor.png`다. 사용자 요청으로 저장소 루트의 `Assets/` 전체를 Git에서 제외하며, Sandbox의 Debug·Release는 같은 원본을 직접 읽는다. PNG를 빌드 출력으로 복사하지 않는다. 원본 준비와 개발 실행 경로의 제약은 [README](../README.md#빌드와-실행)를 따른다. 실제 원본의 배포 출처·라이선스는 확인하지 않았다. 테스트 기준 PNG는 직접 작성해 `Tests/Assets/`에 포함하며 RendererSmoke도 원본을 직접 읽는다. DDS·압축·밉맵·변환 캐시·독립 배포 패키징은 아래 후속 계획이며 현재 실행에는 적용하지 않았다.
 
 ### 우선 도입 후보
 

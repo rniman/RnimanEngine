@@ -43,14 +43,15 @@ namespace
 	// 성공 시 image를 교체하고 실패 시 유지한다.
 	bool CheckImageLoading(ImageData& image)
 	{
-		const auto assetDirectory = GetExecutableDirectory();
-		if (FAILED(assetDirectory.result))
+		const ExecutableDirectoryResult executableDirectoryResult = GetExecutableDirectory();
+		if (FAILED(executableDirectoryResult.result))
 		{
 			return false;
 		}
 
-		const auto directory = assetDirectory.directory / L"Assets";
-		auto loaded = LoadPngImage(directory / L"TextureTest.png");
+		const std::filesystem::path directory =
+			(executableDirectoryResult.directory / RNIMAN_SOURCE_ROOT / L"Tests" / L"Assets").lexically_normal();
+		ImageLoadResult loaded = LoadPngImage(directory / L"TextureTest.png");
 		if (FAILED(loaded.result))
 		{
 			std::printf("FAIL: PNG loading HRESULT=0x%08lX\n", static_cast<unsigned long>(loaded.result));
@@ -65,13 +66,14 @@ namespace
 			return false;
 		}
 
-		const auto missing = LoadPngImage(directory / L"MissingTexture.png");
+		const ImageLoadResult missing = LoadPngImage(directory / L"MissingTexture.png");
 		if (SUCCEEDED(missing.result) || !missing.image.pixels.empty())
 		{
 			return false;
 		}
 
-		const auto corruptPath = directory / L"CorruptTexture.png";
+		// 공유 기준 이미지 폴더에는 쓰지 않고 구성별 테스트 출력에서만 손상 파일을 만든다.
+		const std::filesystem::path corruptPath = executableDirectoryResult.directory / L"CorruptTexture.png";
 		{
 			std::ofstream stream(corruptPath, std::ios::binary);
 			stream << "invalid PNG";
@@ -81,7 +83,7 @@ namespace
 			}
 		}
 
-		const auto corrupt = LoadPngImage(corruptPath);
+		const ImageLoadResult corrupt = LoadPngImage(corruptPath);
 		std::filesystem::remove(corruptPath);
 		if (SUCCEEDED(corrupt.result) || !corrupt.image.pixels.empty())
 		{
@@ -116,15 +118,15 @@ namespace
 		};
 		for (std::size_t face = 0; face < eyes.size(); ++face)
 		{
-			const auto view = DirectX::XMMatrixLookAtLH(
+			const DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
 				DirectX::XMLoadFloat3(&eyes[face]),
 				DirectX::XMVectorZero(),
 				DirectX::XMLoadFloat3(&upVectors[face]));
 			// 화면의 반 픽셀 이동으로 3x3 텍셀 중심과 readback 픽셀 중심을 일치시킨다.
-			const auto projection = DirectX::XMMatrixOrthographicLH(4, 4, 0.1f, 10) *
+			const DirectX::XMMATRIX projection = DirectX::XMMatrixOrthographicLH(4, 4, 0.1f, 10) *
 				DirectX::XMMatrixTranslation(1.0f / 192, -1.0f / 192, 0);
-			std::array<RenderObject, 1> transforms;
-			transforms[0] = CreateRenderObject(DirectX::XMMatrixIdentity(), view * projection).value();
+			std::array<ObjectTransformConstants, 1> transforms;
+			transforms[0] = BuildObjectTransformConstants(DirectX::XMMatrixIdentity(), view * projection).value();
 			std::vector<std::uint32_t> pixels;
 			if (!readback.Capture(transforms, lighting, pixels))
 			{
@@ -181,11 +183,11 @@ namespace
 			}
 
 			// 위치가 바뀐 카메라에서도 두 큐브가 겹치지만 서로 교차하지 않는 장면이다.
-			const auto view = DirectX::XMMatrixLookAtLH(
+			const DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
 				DirectX::XMVectorSet(static_cast<float>(scenario) * 0.5f, 0.5f, -6.0f, 1.0f),
 				DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 1.0f),
 				DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-			const auto projection = DirectX::XMMatrixPerspectiveFovLH(
+			const DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(
 				DirectX::XM_PIDIV4,
 				static_cast<float>(width) / static_cast<float>(height),
 				0.1f,
@@ -196,9 +198,9 @@ namespace
 			Transform back;
 			back.position = { 0.5f, 0.0f, 3.0f };
 			back.rotation.y = 0.6f;
-			std::array<RenderObject, 2> transforms;
-			transforms[0] = CreateRenderObject(front.GetWorld(), view * projection).value();
-			transforms[1] = CreateRenderObject(back.GetWorld(), view * projection).value();
+			std::array<ObjectTransformConstants, 2> transforms;
+			transforms[0] = BuildObjectTransformConstants(front.GetWorld(), view * projection).value();
+			transforms[1] = BuildObjectTransformConstants(back.GetWorld(), view * projection).value();
 			std::vector<std::uint32_t> clear;
 			std::vector<std::uint32_t> frontOnly;
 			std::vector<std::uint32_t> backOnly;
@@ -268,7 +270,7 @@ namespace
 	bool CheckTransform()
 	{
 		Transform transform;
-		const auto point = DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 1.0f);
+		const DirectX::XMVECTOR point = DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 1.0f);
 		if (!DirectX::XMVector3NearEqual(
 			DirectX::XMVector3TransformCoord(point, transform.GetWorld()),
 			point,
@@ -290,7 +292,7 @@ namespace
 	{
 		auto position = [](const SandboxCamera& camera)
 		{
-			const auto stored = camera.GetPosition();
+			const DirectX::XMFLOAT3 stored = camera.GetPosition();
 			return DirectX::XMLoadFloat3(&stored);
 		};
 		auto positionsMatch = [](DirectX::FXMVECTOR left, DirectX::FXMVECTOR right)
@@ -298,7 +300,7 @@ namespace
 			return DirectX::XMVectorGetX(DirectX::XMVector3Length(DirectX::XMVectorSubtract(left, right))) < 0.0001f;
 		};
 		SandboxCamera camera;
-		const auto origin = position(camera);
+		const DirectX::XMVECTOR origin = position(camera);
 		if (!positionsMatch(origin, DirectX::XMVectorSet(0.0f, 2.0f, -5.0f, 1.0f)))
 		{
 			return false;
@@ -311,7 +313,7 @@ namespace
 			stepped.Move(1.0f, 0.0f, 1.0f, 0.01f);
 		}
 
-		const auto displacement = DirectX::XMVectorSubtract(position(camera), origin);
+		const DirectX::XMVECTOR displacement = DirectX::XMVectorSubtract(position(camera), origin);
 		const float distance = DirectX::XMVectorGetX(DirectX::XMVector3Length(displacement));
 		if (std::abs(distance - 3.0f) > 0.0001f || !positionsMatch(position(camera), position(stepped)))
 		{
@@ -556,11 +558,11 @@ int main()
 		{
 			const float angle = static_cast<float>(renderedFrames) * 0.07f;
 
-			const auto view = DirectX::XMMatrixLookAtLH(
+			const DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(
 				DirectX::XMVectorSet(0.0f, 2.0f, -5.0f, 1.0f),
 				DirectX::XMVectorZero(),
 				DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-			const auto projection = DirectX::XMMatrixPerspectiveFovLH(
+			const DirectX::XMMATRIX projection = DirectX::XMMatrixPerspectiveFovLH(
 				DirectX::XM_PIDIV4,
 				static_cast<float>(width) / static_cast<float>(height),
 				0.1f,
@@ -569,14 +571,14 @@ int main()
 			// 두 슬롯에서 0→1→3→9개를 사용해 확장·재사용·빈 목록을 검증한다.
 			constexpr std::size_t counts[] = { 0, 1, 3, 9 };
 			const std::size_t count = counts[(renderedFrames / 2) % 4];
-			std::array<RenderObject, 9> transforms;
+			std::array<ObjectTransformConstants, 9> transforms;
 			for (std::size_t index = 0; index < count; ++index)
 			{
 				Transform object;
 				object.position = { static_cast<float>(index) * 0.3f, 0.0f, static_cast<float>(index) * 0.5f };
 				object.rotation = { angle * 0.5f, angle, 0.0f };
 				object.scale = { 0.5f, 0.8f, 0.6f };
-				transforms[index] = CreateRenderObject(object.GetWorld(), view * projection).value();
+				transforms[index] = BuildObjectTransformConstants(object.GetWorld(), view * projection).value();
 			}
 
 			if ((renderedFrames % 2) != 0)
@@ -589,7 +591,7 @@ int main()
 			DirectX::XMStoreFloat3(&lighting.direction, DirectX::XMVector3Normalize(
 				DirectX::XMVectorSet(std::sin(angle), -1.0f, std::cos(angle), 0.0f)));
 			lighting.intensity = 0.2f + static_cast<float>(renderedFrames % 10) * 0.1f;
-			return renderer.Render(std::span<const RenderObject>(transforms.data(), count), lighting);
+			return renderer.Render(std::span<const ObjectTransformConstants>(transforms.data(), count), lighting);
 		};
 
 		for (auto size : sizes)

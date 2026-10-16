@@ -39,8 +39,9 @@ namespace
 	};
 
 	// CPU 구조체와 HLSL 레지스터의 실제 배치를 함께 검증한다.
-	static_assert(std::is_trivially_copyable_v<RenderObject> && sizeof(RenderObject) == 192);
-	static_assert(offsetof(RenderObject, world) == 64 && offsetof(RenderObject, normalTransform) == 128);
+	static_assert(std::is_trivially_copyable_v<ObjectTransformConstants> && sizeof(ObjectTransformConstants) == 192);
+	static_assert(offsetof(ObjectTransformConstants, world) == 64 &&
+		offsetof(ObjectTransformConstants, normalTransform) == 128);
 	static_assert(std::is_trivially_copyable_v<FrameLighting> && sizeof(FrameLighting) == 64);
 	static_assert(offsetof(FrameLighting, intensity) == 12 && offsetof(FrameLighting, ambientStrength) == 28);
 	static_assert(offsetof(FrameLighting, specularStrength) == 44 && offsetof(FrameLighting, shininess) == 48);
@@ -381,15 +382,15 @@ bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height, const Image
 bool D3D12Renderer::CreateCubePipeline()
 {
 	// 작업 디렉터리와 무관하게 실행 파일과 함께 배치된 CSO를 읽는다.
-	const auto assetDirectory = GetExecutableDirectory();
-	if (!CheckResult(assetDirectory.result, L"GetModuleFileNameW"))
+	const ExecutableDirectoryResult executableDirectoryResult = GetExecutableDirectory();
+	if (!CheckResult(executableDirectoryResult.result, L"GetModuleFileNameW"))
 	{
 		return false;
 	}
 
-	const auto shaderDirectory = assetDirectory.directory / L"Shaders";
-	const auto vertexPath = shaderDirectory / L"CubeVS.cso";
-	const auto pixelPath = shaderDirectory / L"CubePS.cso";
+	const std::filesystem::path shaderDirectory = executableDirectoryResult.directory / L"Shaders";
+	const std::filesystem::path vertexPath = shaderDirectory / L"CubeVS.cso";
+	const std::filesystem::path pixelPath = shaderDirectory / L"CubePS.cso";
 	ComPtr<ID3DBlob> vertexShader;
 	ComPtr<ID3DBlob> pixelShader;
 	const std::wstring vertexOperation = L"D3DReadFileToBlob: " + vertexPath.wstring();
@@ -597,7 +598,7 @@ bool D3D12Renderer::CreateTexture(const ImageData& image)
 	const std::size_t rowBytes = static_cast<std::size_t>(image.width) * 4;
 	for (UINT row = 0; row < image.height; ++row)
 	{
-		const auto destination = static_cast<std::byte*>(mapped) + footprint.Offset +
+		std::byte* const destination = static_cast<std::byte*>(mapped) + footprint.Offset +
 			static_cast<std::size_t>(row) * footprint.Footprint.RowPitch;
 		std::memcpy(
 			destination,
@@ -756,24 +757,24 @@ bool D3D12Renderer::CreateBackBuffers()
 	return true;
 }
 
-bool D3D12Renderer::Render(std::span<const RenderObject> objects, const FrameLighting& lighting)
+bool D3D12Renderer::Render(std::span<const ObjectTransformConstants> objectConstants, const FrameLighting& lighting)
 {
-	return RenderInternal(objects, lighting, true);
+	return RenderInternal(objectConstants, lighting, true);
 }
 
 bool D3D12Renderer::RenderInternal(
-	std::span<const RenderObject> objects,
+	std::span<const ObjectTransformConstants> objectConstants,
 	const FrameLighting& lighting,
 	bool present)
 {
 	constexpr std::size_t constantStride = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-	static_assert(sizeof(RenderObject) <= constantStride && sizeof(FrameLighting) <= constantStride);
+	static_assert(sizeof(ObjectTransformConstants) <= constantStride && sizeof(FrameLighting) <= constantStride);
 	if (!IsValidLighting(lighting))
 	{
 		return CheckResult(E_INVALIDARG, L"Render: invalid Phong lighting values");
 	}
 
-	if (objects.size() > std::numeric_limits<std::size_t>::max() / constantStride - 1)
+	if (objectConstants.size() > std::numeric_limits<std::size_t>::max() / constantStride - 1)
 	{
 		return CheckResult(E_INVALIDARG, L"Render: constant buffer size overflow");
 	}
@@ -788,7 +789,7 @@ bool D3D12Renderer::RenderInternal(
 	}
 
 	// 슬롯의 Fence 완료 후에만 확장·복사한다. 다른 슬롯의 실행 중인 상수는 유지한다.
-	const std::size_t requiredBytes = (objects.size() + 1) * constantStride;
+	const std::size_t requiredBytes = (objectConstants.size() + 1) * constantStride;
 	if (requiredBytes > frame.constantBuffer->GetDesc().Width)
 	{
 		if (!CreateUploadBuffer(requiredBytes, frame.constantBuffer))
@@ -806,12 +807,12 @@ bool D3D12Renderer::RenderInternal(
 
 	// 첫 256바이트는 프레임 공통 b1, 뒤에는 오브젝트별 b0를 배치한다.
 	std::memcpy(mapped, &lighting, sizeof(FrameLighting));
-	for (std::size_t objectIndex = 0; objectIndex < objects.size(); ++objectIndex)
+	for (std::size_t objectIndex = 0; objectIndex < objectConstants.size(); ++objectIndex)
 	{
 		std::memcpy(
 			static_cast<std::byte*>(mapped) + (objectIndex + 1) * constantStride,
-			&objects[objectIndex],
-			sizeof(RenderObject));
+			&objectConstants[objectIndex],
+			sizeof(ObjectTransformConstants));
 	}
 
 	const D3D12_RANGE writtenRange{ 0, requiredBytes };
@@ -841,7 +842,7 @@ bool D3D12Renderer::RenderInternal(
 	constexpr float clearColor[] = { 0.08f, 0.16f, 0.28f, 1.0f };
 	mCommandList->ClearRenderTargetView(renderTargetHandle, clearColor, 0, nullptr);
 
-	const auto depthHandle = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+	const D3D12_CPU_DESCRIPTOR_HANDLE depthHandle = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
 	mCommandList->ClearDepthStencilView(depthHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	// 전체 창을 사용하며 종횡비 보정은 앱의 Projection 행렬이 담당한다.
@@ -862,7 +863,7 @@ bool D3D12Renderer::RenderInternal(
 	mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	mCommandList->IASetVertexBuffers(0, 1, &mVertexBufferView);
 	mCommandList->IASetIndexBuffer(&mIndexBufferView);
-	for (std::size_t objectIndex = 0; objectIndex < objects.size(); ++objectIndex)
+	for (std::size_t objectIndex = 0; objectIndex < objectConstants.size(); ++objectIndex)
 	{
 		mCommandList->SetGraphicsRootConstantBufferView(
 			0,

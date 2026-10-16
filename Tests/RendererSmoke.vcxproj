@@ -49,10 +49,11 @@
     <ClInclude Include="../Sandbox/RenderData.h" />
     <ClInclude Include="../Sandbox/SandboxLighting.h" />
   </ItemGroup>
+  <Import Project="../Sandbox/SourcePaths.props" />
   <Import Project="../Sandbox/CubeShaders.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Target Name="CopyTextureFixture" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true'">
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\Assets\TextureTest.png"
-          DestinationFolder="$(OutDir)Assets" SkipUnchangedFiles="true" />
+  <Target Name="ValidateTextureFixture" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true'">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)\Assets\TextureTest.png')"
+           Text="Required test fixture missing: Tests/Assets/TextureTest.png. Restore the tracked fixture before building RendererSmoke." />
   </Target>
 </Project>

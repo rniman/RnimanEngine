@@ -5,8 +5,8 @@
 #include <cmath>
 #include <optional>
 
-/// @brief CPU/HLSL이 같은 순서로 읽는 행 벡터 행렬. GPU 자원을 소유하지 않는다.
-struct RenderObject
+/// @brief 오브젝트별 셰이더 변환 상수. CPU/HLSL이 같은 순서로 읽으며 GPU 자원을 소유하지 않는다.
+struct ObjectTransformConstants
 {
 	DirectX::XMFLOAT4X4 worldViewProjection;
 	DirectX::XMFLOAT4X4 world;
@@ -26,10 +26,10 @@ struct FrameLighting
 	DirectX::XMFLOAT3 padding{};
 };
 
-/// @brief World·WVP·역전치 법선 행렬을 만든다. 앱과 검증 코드가 같은 변환 계약을 사용한다.
+/// @brief World를 검증하고 World·WVP·역전치 법선 상수를 계산한다. 장면 오브젝트나 GPU 자원은 생성하지 않는다.
 /// @return 비유한 값, 비아핀 World, 0 이하 행렬식 또는 역행렬 범위 초과이면 nullopt.
 /// @note 양수 Scale의 회전·이동을 대상으로 하며 뒤집힌 면의 컬링 보정은 제공하지 않는다.
-[[nodiscard]] inline std::optional<RenderObject> CreateRenderObject(
+[[nodiscard]] inline std::optional<ObjectTransformConstants> BuildObjectTransformConstants(
 	const DirectX::XMMATRIX& world,
 	const DirectX::XMMATRIX& viewProjection)
 {
@@ -46,17 +46,17 @@ struct FrameLighting
 		return std::nullopt;
 	}
 
-	const auto normal = DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(nullptr, world));
-	const auto wvp = world * viewProjection;
+	const DirectX::XMMATRIX normal = DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(nullptr, world));
+	const DirectX::XMMATRIX wvp = world * viewProjection;
 	if (DirectX::XMMatrixIsNaN(normal) || DirectX::XMMatrixIsInfinite(normal) ||
 		DirectX::XMMatrixIsNaN(wvp) || DirectX::XMMatrixIsInfinite(wvp))
 	{
 		return std::nullopt;
 	}
 
-	RenderObject object;
-	DirectX::XMStoreFloat4x4(&object.worldViewProjection, wvp);
-	DirectX::XMStoreFloat4x4(&object.world, world);
-	DirectX::XMStoreFloat4x4(&object.normalTransform, normal);
-	return object;
+	ObjectTransformConstants constants;
+	DirectX::XMStoreFloat4x4(&constants.worldViewProjection, wvp);
+	DirectX::XMStoreFloat4x4(&constants.world, world);
+	DirectX::XMStoreFloat4x4(&constants.normalTransform, normal);
+	return constants;
 }

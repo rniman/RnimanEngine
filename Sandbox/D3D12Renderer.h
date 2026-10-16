@@ -30,11 +30,11 @@ public:
 	[[nodiscard]] bool Initialize(HWND window, UINT width, UINT height, const ImageData& texture);
 
 	/// @brief 초기화 성공 후 호출한다. 사용할 프레임 자원이 실행 중일 때만 재사용을 기다린다.
-	/// @param objects CreateRenderObject로 만든 큐브 데이터. 호출 중 복사하며 참조를 저장하지 않는다.
+	/// @param objectConstants BuildObjectTransformConstants로 계산한 큐브별 변환 상수. 호출 중 복사하며 참조를 저장하지 않는다.
 	/// @param lighting 유한한 프레임 값. direction은 단위 벡터, intensity는 0~2다.
 	/// @note color·ambientStrength·specularStrength는 0~1, shininess는 1~256이다.
 	/// @note 빈 목록은 화면만 지운다. 모든 큐브는 같은 메시와 파이프라인을 공유한다.
-	[[nodiscard]] bool Render(std::span<const RenderObject> objects, const FrameLighting& lighting);
+	[[nodiscard]] bool Render(std::span<const ObjectTransformConstants> objectConstants, const FrameLighting& lighting);
 
 	/// @brief 프레임 경계에서 호출한다. 0 크기는 무시하며 실패 후 렌더링을 중단해야 한다.
 	[[nodiscard]] bool Resize(UINT width, UINT height);
@@ -46,7 +46,7 @@ private:
 	// GPU 픽셀 검증은 테스트 어댑터만 내부 큐·백 버퍼에 접근한다.
 	friend class RendererReadback;
 	[[nodiscard]] bool RenderInternal(
-		std::span<const RenderObject> objects,
+		std::span<const ObjectTransformConstants> objectConstants,
 		const FrameLighting& lighting,
 		bool present);
 

@@ -47,7 +47,7 @@ namespace
 	};
 }
 
-AssetDirectoryResult GetExecutableDirectory()
+ExecutableDirectoryResult GetExecutableDirectory()
 {
 	std::wstring executablePath(32768, L'\0');
 	const DWORD length = GetModuleFileNameW(nullptr, executablePath.data(), static_cast<DWORD>(executablePath.size()));

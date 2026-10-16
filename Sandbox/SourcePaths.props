@@ -1,0 +1,12 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- 프로젝트 OutDir 설정 뒤에 import한다. C++ 경로 리터럴은 역슬래시 이스케이프에 의존하지 않는다. -->
+  <PropertyGroup>
+    <EngineSourceRootFromOutput>$([MSBuild]::MakeRelative('$(OutDir)', '$(EngineRoot)'))</EngineSourceRootFromOutput>
+    <EngineSourceRootFromOutput>$(EngineSourceRootFromOutput.Replace('\', '/'))</EngineSourceRootFromOutput>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>RNIMAN_SOURCE_ROOT=L&quot;$(EngineSourceRootFromOutput)&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>
