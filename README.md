@@ -56,7 +56,9 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 
 ## 코드와 문서 안내
 
-대표 실행 프로젝트는 [Sandbox](Sandbox/Sandbox.vcxproj) 하나다. 진입점 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain`은 [SandboxApp](Sandbox/SandboxApp.cpp)을 생성하고 `Run`을 호출한다. 앱은 [Win32Window](Sandbox/Win32Window.cpp)의 창 생성 → [AssetLoader](Sandbox/AssetLoader.cpp)의 PNG 디코딩 → [D3D12Renderer](Sandbox/D3D12Renderer.cpp) 초기화·텍스처 업로드 → 메시지 처리 → 리사이즈 → 입력·Transform 갱신 → 렌더링 → GPU 완료 확인 → RAII 정리 순서로 실행한다. 현재 파일별 책임과 두 Smoke 프로젝트의 역할은 [현재 프로젝트와 코드](docs/project-structure.md#현재-프로젝트와-코드)에서 확인한다. 엔진 라이브러리와 추가 샘플은 필요할 때 분리한다.
+대표 실행 프로젝트는 [Sandbox](Sandbox/Sandbox.vcxproj) 하나다. 진입점 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain`은 [rengine::SandboxApp](Sandbox/SandboxApp.cpp)을 생성하고 `Run`을 호출한다. 앱은 [Win32Window](Sandbox/Win32Window.cpp)의 창 생성 → [AssetLoader](Sandbox/AssetLoader.cpp)의 PNG 디코딩 → [D3D12Renderer](Sandbox/D3D12Renderer.cpp) 초기화·텍스처 업로드 → 메시지 처리 → 리사이즈 → 입력·Transform 갱신 → 렌더링 → GPU 완료 확인 → RAII 정리 순서로 실행한다. 현재 파일별 책임과 두 Smoke 프로젝트의 역할은 [현재 프로젝트와 코드](docs/project-structure.md#현재-프로젝트와-코드)에서 확인한다. 엔진 라이브러리와 추가 샘플은 필요할 때 분리한다.
+
+직접 작성한 C++ 타입·함수는 Sandbox 전용 코드와 테스트를 포함해 `rengine` 단일 루트 네임스페이스를 사용한다. `main`·`wWinMain`은 전역 진입점이며 외부 API와 HLSL 이름은 원래 표기를 유지한다. 적용 범위와 호출 예시는 [네임스페이스 규약](docs/design.md#네임스페이스)을 따른다.
 
 | 문서 | 내용 |
 |---|---|

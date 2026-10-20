@@ -9,6 +9,6 @@ int WINAPI wWinMain(
 	PWSTR,
 	int showCommand)
 {
-	SandboxApp app{ instance };
+	rengine::SandboxApp app{ instance };
 	return app.Run(showCommand);
 }

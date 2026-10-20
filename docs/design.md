@@ -13,6 +13,14 @@
 Unity → bin → CPU 에셋 데이터 → 장면 구성 / GPU 리소스 생성
 ```
 
+### 네임스페이스
+
+2026-10-20 직접 작성한 C++ 코드의 단일 루트를 `rengine`으로 채택했다. 예를 들어 `rengine::Transform`, `rengine::D3D12Renderer`, `rengine::SandboxApp`, `rengine::LoadPngImage`로 사용한다. 이하 설명에서는 문맥이 분명하면 루트 이름을 생략한다.
+
+Sandbox의 데이터·수학·로더·창·렌더러·앱과 테스트의 RendererReadback·LightingChecks를 같은 루트에 둔다. 파일 내부 보조 타입·함수·상수는 그 안의 익명 네임스페이스에 유지한다. 헤더의 include는 네임스페이스 밖에 두고, 외부에서 사용할 때는 `rengine::`로 이름을 한정한다. 전역 별칭이나 헤더의 using namespace는 제공하지 않는다.
+
+`main`·`wWinMain`은 전역에 유지하고 제품 코드를 한정된 이름으로 호출한다. Win32·DirectX·표준 라이브러리·HLSL은 기존 계약을 유지한다. 폴더나 프로젝트 이름에 따라 하위 네임스페이스를 만들지 않으며, 향후 독립 API·이름 충돌이 생기면 별도로 검토한다. 실제 적용·검증 기록은 [개발 문서](development.md#단일-루트-네임스페이스-적용-2026-10-20)를 따른다.
+
 ### 책임과 의존성
 
 - 앱은 실행 수명주기와 엔진 구성을, 장면·ECS는 게임 상태와 갱신을 담당한다. Application·Scene과 ECS는 함께 사용할 수 있다.

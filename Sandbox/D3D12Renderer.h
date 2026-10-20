@@ -12,99 +12,104 @@
 #include <array>
 #include <span>
 
-/// @brief UI 스레드에서 사용하는 텍스처 큐브 렌더러. 창은 앱이 소유한다.
-/// @note Initialize는 한 번만 호출한다. 실패 후에는 재사용하지 않고 파괴한다.
-class D3D12Renderer
+namespace rengine
 {
-public:
-	D3D12Renderer() = default;
-	~D3D12Renderer();
-
-	D3D12Renderer(const D3D12Renderer&) = delete;
-	D3D12Renderer& operator=(const D3D12Renderer&) = delete;
-
-	/// @brief 렌더러보다 오래 유지되는 window와 양수 클라이언트 크기로 초기화한다.
-	/// @return 실패 시 false. API와 HRESULT를 보고하며 부분 자원은 소멸 시 정리한다.
-	/// @param texture sRGB BaseColor RGBA8. 호출 중 복사하며 참조를 저장하지 않는다.
-	/// @note 이미지 크기는 각 축 1~16384, pixels는 width * height * 4바이트여야 한다.
-	[[nodiscard]] bool Initialize(HWND window, UINT width, UINT height, const ImageData& texture);
-
-	/// @brief 초기화 성공 후 호출한다. 사용할 프레임 자원이 실행 중일 때만 재사용을 기다린다.
-	/// @param objectConstants BuildObjectTransformConstants로 계산한 큐브별 변환 상수. 호출 중 복사하며 참조를 저장하지 않는다.
-	/// @param lighting 유한한 프레임 값. direction은 단위 벡터, intensity는 0~2다.
-	/// @note color·ambientStrength·specularStrength는 0~1, shininess는 1~256이다.
-	/// @note 빈 목록은 화면만 지운다. 모든 큐브는 같은 메시와 파이프라인을 공유한다.
-	[[nodiscard]] bool Render(std::span<const ObjectTransformConstants> objectConstants, const FrameLighting& lighting);
-
-	/// @brief 프레임 경계에서 호출한다. 0 크기는 무시하며 실패 후 렌더링을 중단해야 한다.
-	[[nodiscard]] bool Resize(UINT width, UINT height);
-
-	/// @brief 종료 전에 호출하여 GPU 완료를 확인한다. 소멸자도 미완료 작업을 정리한다.
-	[[nodiscard]] bool WaitForGpu();
-
-private:
-	// GPU 픽셀 검증은 테스트 어댑터만 내부 큐·백 버퍼에 접근한다.
-	friend class RendererReadback;
-	[[nodiscard]] bool RenderInternal(
-		std::span<const ObjectTransformConstants> objectConstants,
-		const FrameLighting& lighting,
-		bool present);
-
-	struct FrameResources
+	/// @brief UI 스레드에서 사용하는 텍스처 큐브 렌더러. 창은 앱이 소유한다.
+	/// @note Initialize는 한 번만 호출한다. 실패 후에는 재사용하지 않고 파괴한다.
+	class D3D12Renderer
 	{
-		Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;
-		Microsoft::WRL::ComPtr<ID3D12Resource> constantBuffer;
-		UINT64 fenceValue = 0;
+	public:
+		D3D12Renderer() = default;
+		~D3D12Renderer();
+
+		D3D12Renderer(const D3D12Renderer&) = delete;
+		D3D12Renderer& operator=(const D3D12Renderer&) = delete;
+
+		/// @brief 렌더러보다 오래 유지되는 window와 양수 클라이언트 크기로 초기화한다.
+		/// @return 실패 시 false. API와 HRESULT를 보고하며 부분 자원은 소멸 시 정리한다.
+		/// @param texture sRGB BaseColor RGBA8. 호출 중 복사하며 참조를 저장하지 않는다.
+		/// @note 이미지 크기는 각 축 1~16384, pixels는 width * height * 4바이트여야 한다.
+		[[nodiscard]] bool Initialize(HWND window, UINT width, UINT height, const ImageData& texture);
+
+		/// @brief 초기화 성공 후 호출한다. 사용할 프레임 자원이 실행 중일 때만 재사용을 기다린다.
+		/// @param objectConstants BuildObjectTransformConstants로 계산한 큐브별 변환 상수. 호출 중 복사하며 참조를 저장하지 않는다.
+		/// @param lighting 유한한 프레임 값. direction은 단위 벡터, intensity는 0~2다.
+		/// @note color·ambientStrength·specularStrength는 0~1, shininess는 1~256이다.
+		/// @note 빈 목록은 화면만 지운다. 모든 큐브는 같은 메시와 파이프라인을 공유한다.
+		[[nodiscard]] bool Render(
+			std::span<const ObjectTransformConstants> objectConstants,
+			const FrameLighting& lighting);
+
+		/// @brief 프레임 경계에서 호출한다. 0 크기는 무시하며 실패 후 렌더링을 중단해야 한다.
+		[[nodiscard]] bool Resize(UINT width, UINT height);
+
+		/// @brief 종료 전에 호출하여 GPU 완료를 확인한다. 소멸자도 미완료 작업을 정리한다.
+		[[nodiscard]] bool WaitForGpu();
+
+	private:
+		// GPU 픽셀 검증은 테스트 어댑터만 내부 큐·백 버퍼에 접근한다.
+		friend class RendererReadback;
+		[[nodiscard]] bool RenderInternal(
+			std::span<const ObjectTransformConstants> objectConstants,
+			const FrameLighting& lighting,
+			bool present);
+
+		struct FrameResources
+		{
+			Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;
+			Microsoft::WRL::ComPtr<ID3D12Resource> constantBuffer;
+			UINT64 fenceValue = 0;
+		};
+
+		[[nodiscard]] bool CreateBackBuffers();
+		[[nodiscard]] bool CreateCubePipeline();
+		[[nodiscard]] bool CreateCubeGeometry();
+		[[nodiscard]] bool CreateTexture(const ImageData& image);
+		[[nodiscard]] bool CreateDepthBuffer();
+
+		// 성공 시 resource를 교체하고 실패 시 유지한다. 기존 자원의 GPU 사용 완료는 호출자가 보장한다.
+		[[nodiscard]] bool CreateUploadBuffer(
+			UINT64 size,
+			Microsoft::WRL::ComPtr<ID3D12Resource>& resource);
+
+		[[nodiscard]] bool WaitForFence(UINT64 target);
+		[[nodiscard]] bool CheckResult(HRESULT result, const wchar_t* operation) const;
+
+		static constexpr UINT BUFFER_COUNT = 2;
+
+		Microsoft::WRL::ComPtr<IDXGIFactory6> mFactory;
+		Microsoft::WRL::ComPtr<ID3D12Device> mDevice;
+		Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue;
+
+		Microsoft::WRL::ComPtr<IDXGISwapChain3> mSwapChain;
+		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;
+		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;
+		Microsoft::WRL::ComPtr<ID3D12Resource> mDepthBuffer;
+		std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, BUFFER_COUNT> mBackBuffers;
+
+		// 백 버퍼 인덱스로 선택하며, 기록 메모리는 해당 제출의 Fence 완료까지 유지한다.
+		std::array<FrameResources, BUFFER_COUNT> mFrames;
+		Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;
+
+		Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
+		Microsoft::WRL::ComPtr<ID3D12PipelineState> mPipelineState;
+		Microsoft::WRL::ComPtr<ID3D12Resource> mVertexBuffer;
+		D3D12_VERTEX_BUFFER_VIEW mVertexBufferView{};
+		Microsoft::WRL::ComPtr<ID3D12Resource> mIndexBuffer;
+		D3D12_INDEX_BUFFER_VIEW mIndexBufferView{};
+
+		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvHeap;
+		Microsoft::WRL::ComPtr<ID3D12Resource> mTexture;
+		// GPU 완료 확인 실패 시에도 소멸자의 완료 시도까지 업로드 메모리를 유지한다.
+		Microsoft::WRL::ComPtr<ID3D12Resource> mTextureUpload;
+
+		Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
+		HANDLE mFenceEvent = nullptr;
+		UINT64 mFenceValue = 0;
+
+		UINT mRtvStride = 0;
+		UINT mWidth = 0;
+		UINT mHeight = 0;
+		bool mGpuWorkPending = false;
 	};
-
-	[[nodiscard]] bool CreateBackBuffers();
-	[[nodiscard]] bool CreateCubePipeline();
-	[[nodiscard]] bool CreateCubeGeometry();
-	[[nodiscard]] bool CreateTexture(const ImageData& image);
-	[[nodiscard]] bool CreateDepthBuffer();
-
-	// 성공 시 resource를 교체하고 실패 시 유지한다. 기존 자원의 GPU 사용 완료는 호출자가 보장한다.
-	[[nodiscard]] bool CreateUploadBuffer(
-		UINT64 size,
-		Microsoft::WRL::ComPtr<ID3D12Resource>& resource);
-
-	[[nodiscard]] bool WaitForFence(UINT64 target);
-	[[nodiscard]] bool CheckResult(HRESULT result, const wchar_t* operation) const;
-
-	static constexpr UINT BUFFER_COUNT = 2;
-
-	Microsoft::WRL::ComPtr<IDXGIFactory6> mFactory;
-	Microsoft::WRL::ComPtr<ID3D12Device> mDevice;
-	Microsoft::WRL::ComPtr<ID3D12CommandQueue> mCommandQueue;
-
-	Microsoft::WRL::ComPtr<IDXGISwapChain3> mSwapChain;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mDepthBuffer;
-	std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, BUFFER_COUNT> mBackBuffers;
-
-	// 백 버퍼 인덱스로 선택하며, 기록 메모리는 해당 제출의 Fence 완료까지 유지한다.
-	std::array<FrameResources, BUFFER_COUNT> mFrames;
-	Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> mCommandList;
-
-	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> mPipelineState;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mVertexBuffer;
-	D3D12_VERTEX_BUFFER_VIEW mVertexBufferView{};
-	Microsoft::WRL::ComPtr<ID3D12Resource> mIndexBuffer;
-	D3D12_INDEX_BUFFER_VIEW mIndexBufferView{};
-
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvHeap;
-	Microsoft::WRL::ComPtr<ID3D12Resource> mTexture;
-	// GPU 완료 확인 실패 시에도 소멸자의 완료 시도까지 업로드 메모리를 유지한다.
-	Microsoft::WRL::ComPtr<ID3D12Resource> mTextureUpload;
-
-	Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
-	HANDLE mFenceEvent = nullptr;
-	UINT64 mFenceValue = 0;
-
-	UINT mRtvStride = 0;
-	UINT mWidth = 0;
-	UINT mHeight = 0;
-	bool mGpuWorkPending = false;
-};
+}

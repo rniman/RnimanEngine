@@ -14,172 +14,182 @@
 #include <string>
 #include <utility>
 
-using Microsoft::WRL::ComPtr;
-
-namespace
+namespace rengine
 {
-	class ComApartment
-	{
-	public:
-		ComApartment()
-			: mResult{ CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED) }
-		{
-		}
+	using Microsoft::WRL::ComPtr;
 
-		~ComApartment()
+	namespace
+	{
+		class ComApartment
 		{
-			if (SUCCEEDED(mResult))
+		public:
+			ComApartment()
+				: mResult{ CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED) }
 			{
-				CoUninitialize();
 			}
-		}
 
-		ComApartment(const ComApartment&) = delete;
-		ComApartment& operator=(const ComApartment&) = delete;
+			~ComApartment()
+			{
+				if (SUCCEEDED(mResult))
+				{
+					CoUninitialize();
+				}
+			}
 
-		HRESULT GetResult() const
+			ComApartment(const ComApartment&) = delete;
+			ComApartment& operator=(const ComApartment&) = delete;
+
+			HRESULT GetResult() const
+			{
+				return mResult;
+			}
+
+		private:
+			HRESULT mResult;
+		};
+	}
+
+	ExecutableDirectoryResult GetExecutableDirectory()
+	{
+		std::wstring executablePath(32768, L'\0');
+		const DWORD length = GetModuleFileNameW(
+			nullptr,
+			executablePath.data(),
+			static_cast<DWORD>(executablePath.size()));
+		if (length == 0)
 		{
-			return mResult;
+			return { {}, HRESULT_FROM_WIN32(GetLastError()) };
 		}
 
-	private:
-		HRESULT mResult;
-	};
-}
+		if (length >= executablePath.size())
+		{
+			return { {}, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) };
+		}
 
-ExecutableDirectoryResult GetExecutableDirectory()
-{
-	std::wstring executablePath(32768, L'\0');
-	const DWORD length = GetModuleFileNameW(nullptr, executablePath.data(), static_cast<DWORD>(executablePath.size()));
-	if (length == 0)
-	{
-		return { {}, HRESULT_FROM_WIN32(GetLastError()) };
+		executablePath.resize(length);
+		return { std::filesystem::path(executablePath).parent_path(), S_OK };
 	}
 
-	if (length >= executablePath.size())
+	ImageLoadResult LoadPngImage(const std::filesystem::path& path)
 	{
-		return { {}, HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER) };
-	}
+		ComApartment apartment;
+		if (FAILED(apartment.GetResult()))
+		{
+			return { {}, apartment.GetResult(), L"CoInitializeEx(STA)" };
+		}
 
-	executablePath.resize(length);
-	return { std::filesystem::path(executablePath).parent_path(), S_OK };
-}
+		ComPtr<IWICImagingFactory> factory;
+		HRESULT result = CoCreateInstance(
+			CLSID_WICImagingFactory,
+			nullptr,
+			CLSCTX_INPROC_SERVER,
+			IID_PPV_ARGS(&factory));
+		if (FAILED(result))
+		{
+			return { {}, result, L"CoCreateInstance(WIC)" };
+		}
 
-ImageLoadResult LoadPngImage(const std::filesystem::path& path)
-{
-	ComApartment apartment;
-	if (FAILED(apartment.GetResult()))
-	{
-		return { {}, apartment.GetResult(), L"CoInitializeEx(STA)" };
-	}
+		ComPtr<IWICBitmapDecoder> decoder;
+		result = factory->CreateDecoderFromFilename(
+			path.c_str(),
+			nullptr,
+			GENERIC_READ,
+			WICDecodeMetadataCacheOnLoad,
+			&decoder);
+		if (FAILED(result))
+		{
+			return { {}, result, L"WIC::CreateDecoderFromFilename" };
+		}
 
-	ComPtr<IWICImagingFactory> factory;
-	HRESULT result = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory));
-	if (FAILED(result))
-	{
-		return { {}, result, L"CoCreateInstance(WIC)" };
-	}
+		GUID container{};
+		result = decoder->GetContainerFormat(&container);
+		if (FAILED(result))
+		{
+			return { {}, result, L"WIC::GetContainerFormat" };
+		}
 
-	ComPtr<IWICBitmapDecoder> decoder;
-	result = factory->CreateDecoderFromFilename(
-		path.c_str(),
-		nullptr,
-		GENERIC_READ,
-		WICDecodeMetadataCacheOnLoad,
-		&decoder);
-	if (FAILED(result))
-	{
-		return { {}, result, L"WIC::CreateDecoderFromFilename" };
-	}
+		if (container != GUID_ContainerFormatPng)
+		{
+			return { {}, WINCODEC_ERR_UNKNOWNIMAGEFORMAT, L"LoadPngImage: PNG required" };
+		}
 
-	GUID container{};
-	result = decoder->GetContainerFormat(&container);
-	if (FAILED(result))
-	{
-		return { {}, result, L"WIC::GetContainerFormat" };
-	}
+		UINT frameCount = 0;
+		result = decoder->GetFrameCount(&frameCount);
+		if (FAILED(result))
+		{
+			return { {}, result, L"WIC::GetFrameCount" };
+		}
 
-	if (container != GUID_ContainerFormatPng)
-	{
-		return { {}, WINCODEC_ERR_UNKNOWNIMAGEFORMAT, L"LoadPngImage: PNG required" };
-	}
+		if (frameCount != 1)
+		{
+			return { {}, WINCODEC_ERR_UNSUPPORTEDOPERATION, L"LoadPngImage: single frame required" };
+		}
 
-	UINT frameCount = 0;
-	result = decoder->GetFrameCount(&frameCount);
-	if (FAILED(result))
-	{
-		return { {}, result, L"WIC::GetFrameCount" };
-	}
+		ComPtr<IWICBitmapFrameDecode> frame;
+		result = decoder->GetFrame(0, &frame);
+		if (FAILED(result))
+		{
+			return { {}, result, L"WIC::GetFrame" };
+		}
 
-	if (frameCount != 1)
-	{
-		return { {}, WINCODEC_ERR_UNSUPPORTEDOPERATION, L"LoadPngImage: single frame required" };
-	}
+		UINT width = 0;
+		UINT height = 0;
+		result = frame->GetSize(&width, &height);
+		if (FAILED(result))
+		{
+			return { {}, result, L"WIC::GetSize" };
+		}
 
-	ComPtr<IWICBitmapFrameDecode> frame;
-	result = decoder->GetFrame(0, &frame);
-	if (FAILED(result))
-	{
-		return { {}, result, L"WIC::GetFrame" };
-	}
+		// CopyPixels의 행 간격·총 바이트는 UINT다. 곱셈 전에 범위를 검사한다.
+		if (width == 0 || height == 0 || width > std::numeric_limits<UINT>::max() / 4)
+		{
+			return { {}, E_INVALIDARG, L"LoadPngImage: invalid dimensions" };
+		}
 
-	UINT width = 0;
-	UINT height = 0;
-	result = frame->GetSize(&width, &height);
-	if (FAILED(result))
-	{
-		return { {}, result, L"WIC::GetSize" };
-	}
+		const UINT rowBytes = width * 4;
+		if (height > std::numeric_limits<UINT>::max() / rowBytes)
+		{
+			return { {}, E_INVALIDARG, L"LoadPngImage: pixel size overflow" };
+		}
 
-	// CopyPixels의 행 간격·총 바이트는 UINT다. 곱셈 전에 범위를 검사한다.
-	if (width == 0 || height == 0 || width > std::numeric_limits<UINT>::max() / 4)
-	{
-		return { {}, E_INVALIDARG, L"LoadPngImage: invalid dimensions" };
-	}
+		ComPtr<IWICFormatConverter> converter;
+		result = factory->CreateFormatConverter(&converter);
+		if (FAILED(result))
+		{
+			return { {}, result, L"WIC::CreateFormatConverter" };
+		}
 
-	const UINT rowBytes = width * 4;
-	if (height > std::numeric_limits<UINT>::max() / rowBytes)
-	{
-		return { {}, E_INVALIDARG, L"LoadPngImage: pixel size overflow" };
-	}
+		result = converter->Initialize(
+			frame.Get(),
+			GUID_WICPixelFormat32bppRGBA,
+			WICBitmapDitherTypeNone,
+			nullptr,
+			0.0,
+			WICBitmapPaletteTypeCustom);
+		if (FAILED(result))
+		{
+			return { {}, result, L"WIC::FormatConverter::Initialize(RGBA8)" };
+		}
 
-	ComPtr<IWICFormatConverter> converter;
-	result = factory->CreateFormatConverter(&converter);
-	if (FAILED(result))
-	{
-		return { {}, result, L"WIC::CreateFormatConverter" };
-	}
+		ImageData image;
+		image.width = width;
+		image.height = height;
+		const UINT bytes = rowBytes * height;
+		try
+		{
+			image.pixels.resize(bytes);
+		}
+		catch (const std::bad_alloc&)
+		{
+			return { {}, E_OUTOFMEMORY, L"LoadPngImage: allocate pixels" };
+		}
 
-	result = converter->Initialize(
-		frame.Get(),
-		GUID_WICPixelFormat32bppRGBA,
-		WICBitmapDitherTypeNone,
-		nullptr,
-		0.0,
-		WICBitmapPaletteTypeCustom);
-	if (FAILED(result))
-	{
-		return { {}, result, L"WIC::FormatConverter::Initialize(RGBA8)" };
-	}
+		result = converter->CopyPixels(nullptr, rowBytes, bytes, image.pixels.data());
+		if (FAILED(result))
+		{
+			return { {}, result, L"WIC::CopyPixels" };
+		}
 
-	ImageData image;
-	image.width = width;
-	image.height = height;
-	const UINT bytes = rowBytes * height;
-	try
-	{
-		image.pixels.resize(bytes);
+		return { std::move(image), S_OK, L"LoadPngImage" };
 	}
-	catch (const std::bad_alloc&)
-	{
-		return { {}, E_OUTOFMEMORY, L"LoadPngImage: allocate pixels" };
-	}
-
-	result = converter->CopyPixels(nullptr, rowBytes, bytes, image.pixels.data());
-	if (FAILED(result))
-	{
-		return { {}, result, L"WIC::CopyPixels" };
-	}
-
-	return { std::move(image), S_OK, L"LoadPngImage" };
 }
