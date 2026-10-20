@@ -46,7 +46,7 @@ namespace rengine
 		/// @param lighting D3D12Renderer::Render와 같은 조건의 프레임 조명. 호출 중에만 읽는다.
 		/// @param pixels 성공 시 픽셀로 교체한다. 실패 시에도 내용이나 크기가 바뀔 수 있다.
 		/// @return 성공 시 true. 실패 시 false를 반환하며 테스트를 종료해야 한다.
-		bool Capture(
+		[[nodiscard]] bool Capture(
 			std::span<const ObjectTransformConstants> objectConstants,
 			const FrameLighting& lighting,
 			std::vector<std::uint32_t>& pixels)

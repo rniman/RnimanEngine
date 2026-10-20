@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <optional>
 
 namespace rengine
 {
@@ -28,7 +29,7 @@ namespace rengine
 		bool CheckWindow(Win32Window& window)
 		{
 			const HWND handle = window.GetHandle();
-			const auto& state = window.GetState();
+			const Win32Window::State& state = window.GetState();
 			if (!Check(state.width == 1280 && state.height == 720, "initial client size"))
 			{
 				return false;
@@ -37,8 +38,8 @@ namespace rengine
 			// 키는 유지하면서 프레임마다 누적 입력이 다시 적용되지 않는 경계를 검사한다.
 			SendMessageW(handle, WM_SETFOCUS, 0, 0);
 			SendMessageW(handle, WM_KEYDOWN, 'W', 0);
-			const auto first = window.ConsumeInput();
-			const auto next = window.ConsumeInput();
+			const Win32Window::InputState first = window.ConsumeInput();
+			const Win32Window::InputState next = window.ConsumeInput();
 			if (!Check(state.focused && first.keys['W'] && first.resetFrameTime &&
 				next.keys['W'] && !next.resetFrameTime, "key hold and one-shot time reset"))
 			{
@@ -51,7 +52,7 @@ namespace rengine
 				SendMessageW(handle, WM_KEYDOWN, key, 0);
 			}
 
-			const auto lightingInput = window.ConsumeInput();
+			const Win32Window::InputState lightingInput = window.ConsumeInput();
 			for (UINT key : lightingKeys)
 			{
 				if (!Check(lightingInput.keys[key], "lighting key hold"))
@@ -62,7 +63,7 @@ namespace rengine
 				SendMessageW(handle, WM_KEYUP, key, 0);
 			}
 
-			const auto lightingReleased = window.ConsumeInput();
+			const Win32Window::InputState lightingReleased = window.ConsumeInput();
 			for (UINT key : lightingKeys)
 			{
 				if (!Check(!lightingReleased.keys[key], "lighting key release"))
@@ -79,8 +80,8 @@ namespace rengine
 
 			SendMessageW(handle, WM_MOUSEMOVE, 0, MAKELPARAM(-5, 30));
 			SendMessageW(handle, WM_MOUSEMOVE, 0, MAKELPARAM(-8, 24));
-			const auto drag = window.ConsumeInput();
-			const auto consumed = window.ConsumeInput();
+			const Win32Window::InputState drag = window.ConsumeInput();
+			const Win32Window::InputState consumed = window.ConsumeInput();
 			if (!Check(drag.mouseDeltaX == -18.0f && drag.mouseDeltaY == 4.0f &&
 				consumed.mouseDeltaX == 0.0f && consumed.mouseDeltaY == 0.0f && consumed.keys['W'],
 				"signed mouse coordinates and one-shot accumulated drag"))
@@ -95,7 +96,7 @@ namespace rengine
 			}
 
 			SendMessageW(handle, WM_MOUSEMOVE, 0, MAKELPARAM(60, 60));
-			const auto lostCapture = window.ConsumeInput();
+			const Win32Window::InputState lostCapture = window.ConsumeInput();
 			if (!Check(lostCapture.keys['W'] && lostCapture.mouseDeltaX == 0.0f && lostCapture.mouseDeltaY == 0.0f,
 				"capture loss cancels pending and subsequent drag"))
 			{
@@ -137,7 +138,7 @@ namespace rengine
 			}
 
 			SendMessageW(handle, WM_SIZE, SIZE_RESTORED, MAKELPARAM(640, 480));
-			const auto restored = window.ConsumeInput();
+			const Win32Window::InputState restored = window.ConsumeInput();
 			if (!Check(!state.minimized && state.width == 640 && state.height == 480 &&
 				state.resizePending && restored.resetFrameTime && !restored.keys['W'], "restore keeps keys released"))
 			{
@@ -160,8 +161,8 @@ namespace rengine
 				return false;
 			}
 
-			const auto queuedExitCode = window.PumpMessages();
-			const auto queuedInput = window.ConsumeInput();
+			const std::optional<int> queuedExitCode = window.PumpMessages();
+			const Win32Window::InputState queuedInput = window.ConsumeInput();
 			if (!Check(!queuedExitCode.has_value() && queuedInput.keys['E'], "pump queued input"))
 			{
 				return false;

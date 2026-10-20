@@ -188,7 +188,7 @@ namespace rengine
 		}
 
 		RendererReadback readback{ renderer };
-		const auto ambient = CreateAmbientLighting();
+		const FrameLighting ambient = CreateAmbientLighting();
 		const DirectX::XMMATRIX projection = DirectX::XMMatrixOrthographicLH(4.0f, 4.0f, 0.1f, 10.0f) *
 			DirectX::XMMatrixTranslation(1.0f / 192, -1.0f / 192, 0.0f);
 		constexpr std::array<DirectX::XMFLOAT3, 6> eyes = {
@@ -230,7 +230,7 @@ namespace rengine
 			{
 				for (UINT column = 0; column < 3; ++column)
 				{
-					const auto index = (64 + row * 32) * 192 + 64 + column * 32;
+					const std::size_t index = (64 + row * 32) * 192 + 64 + column * 32;
 					if (!CheckPixel(lit[index], baseline[index], { 0.42f, 0.3f, 0.18f }, {}, "six-face diffuse"))
 					{
 						return false;

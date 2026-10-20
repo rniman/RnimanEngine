@@ -140,6 +140,7 @@ Resize는 동일 크기·0 크기를 무시하고 전체 GPU 대기 후 백 버�
 - `ImageLoadResult`·`ExecutableDirectoryResult`는 이름 있는 구조체로 데이터·오류를 구분한다. `ObjectTransformConstants`·`FrameLighting`은 공개 데이터, `SandboxLighting`은 각도·강도 조건을 보호하는 값 클래스이며 Rule of Zero를 따른다. `ComApartment`는 복사·이동을 금지해 COM 초기화 횟수를 중복 정리하지 않는다.
 - 실제 소비자인 앱·테스트가 EXE 기준 경로 계산과 `BuildObjectTransformConstants`를 공유한다. 렌더러는 호출 중 입력을 복사하고 참조를 보관하지 않는다. GPU 실패 시 수명과 정리는 위 실행·렌더링 계약을 따른다.
 - CPU 복사 크기·span 인덱스는 `std::size_t`, D3D12 크기·Fence·출력 인자는 API 타입을 유지한다. 크기 산술 범위를 검사하고 출력 포인터를 다른 정수 타입으로 캐스팅하지 않는다. 고정 배열의 API 전달·Win32/COM 변환은 실제 범위와 객체 계약에 맞춘다.
+- 테스트 어댑터 RendererReadback의 Capture는 실패 후 픽셀 검증을 중단해야 하므로 `[[nodiscard]]`를 사용한다. WindowSmoke의 상태 참조·입력 복사본·optional 종료 코드와 LightingChecks의 ambient·픽셀 index는 타입을 명시한다. [Readback 결과 진단](development.md#readback-결과-확인-진단-적용-2026-10-20)과 [테스트 타입 적용](development.md#테스트-상태와-픽셀-인덱스-타입-명시-2026-10-20)에서 범위·검증을 확인한다.
 - PCH 요구 시 자기 헤더보다 `pch.h`를 먼저 포함한다. 플랫폼 include의 Windows→DirectX 순서는 이유를 주석으로 남기며, 기존 긴 오류 문자열은 포맷 규칙의 문자열 예외를 유지한다.
 - 후속 메시·재질·광원에 실제 공유 수요가 생기면 텍스처 업로드·렌더 데이터·재질 상수 분리를 검토한다. 범용 로더·광원 관리자·자체 자료형 별칭·변환 도우미·ECS는 선행 구현하지 않는다. 채택 기준의 미적용 항목은 확인 범위에서 없다.
 

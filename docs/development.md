@@ -15,13 +15,29 @@
 | 구분 | 현재 상태 |
 |---|---|
 | 확인 범위 | 2026-10-13 공개 baseline·좌표축/행렬 규칙 확인. 과거 근거는 [마일스톤 기록](milestones/v0.1.0-sandbox.md#컨벤션-확인-기록-2026-10-13), 2026-10-15·16 로컬 관련 규칙 재확인과 공개본 접근 제약은 아래 적용 기록 참고. 2026-10-20 공개 baseline·명명·헤더·포맷 재확인과 [rengine 적용](#단일-루트-네임스페이스-적용-2026-10-20) 기록 추가 |
-| 실제 적용 | 명명·포맷·초기화·const·직접 include·한국어 API 주석·반환 계약·소유권·특수 멤버. 행 우선·행 벡터·row_major·추가 전달 전치 없음은 기존 코드 확인 및 CPU/GPU·셰이더 패킹 검증 완료 |
+| 실제 적용 | 명명·포맷·초기화·const·직접 include·한국어 API 주석·반환 계약·소유권·특수 멤버. 행 우선·행 벡터·row_major·추가 전달 전치 없음은 기존 코드 확인 및 CPU/GPU·셰이더 패킹 검증 완료. RendererReadback::Capture의 nodiscard와 WindowSmoke·LightingChecks의 지정 변수 타입 명시 적용 |
 | 프로젝트 한정 채택 | 창·렌더러 소유 분리, 고성능 하드웨어 우선·WARP 자동 대체 없음, 프레임 경계 리사이즈, 슬롯 재사용 전 Fence 대기, Sandbox·테스트 C++ 코드의 rengine 단일 루트 |
 | 시험 적용 | WIC·STA·RGBA8, sRGB·단일 밉·선형 Clamp, ComPtr·Event 수명·bool/HRESULT 진단, Debug 레이어·두 백 버퍼·VSync, FXC·SM5.0·D32·카메라·Transform·Phong·테스트 readback |
 | 예외·미정 | PCH는 자기 헤더보다 먼저 포함. Windows→DirectX include 순서·긴 오류 문자열 예외 유지. 로컬 정면·거리 단위·외부 에셋 변환은 실제 사용 시 결정. 비정방 행렬·행렬 배열 도입 시 별도 패킹 검증. main·wWinMain과 외부 API·HLSL은 rengine 적용 제외 |
 | 초안 | C++ 자료형·변환·attribute와 HLSL·검증 문서의 초안을 공통 채택으로 확대하지 않음 |
 
 프로젝트의 [구현 선택과 후속 조건](design.md#구현-선택과-후속-조건)을 따른다. 규칙 변경 시 해당 범위의 코드·설정을 확인하고, 확인만 한 항목과 실제 수정·시험 적용한 항목을 구분한다. 적용하지 못하면 대상·이유·후속 조건을 남긴다. 날짜별 근거는 해당 마일스톤에 기록한다.
+
+### 테스트 상태와 픽셀 인덱스 타입 명시 (2026-10-20)
+
+- [auto 기준](https://rniman.github.io/convention/coding/cpp/auto/)에 따라 WindowSmoke의 상태 참조 1개를 `const Win32Window::State&`, 입력 복사본 9개를 `const Win32Window::InputState`, 종료 코드 1개를 `const std::optional<int>`로 명시했다. 상태의 참조 수명·입력 소비·nullopt와 종료 코드 0의 구분을 유지하며 `<optional>`을 직접 포함한다.
+- LightingChecks의 ambient는 `const FrameLighting`, 픽셀 index는 `const std::size_t`로 명시했다. row·column은 각각 0~2이므로 기존 UINT 계산식의 index는 12352~24704다. 192×192 readback의 36864픽셀 범위 안에 있고 계산 중 UINT 오버플로도 없다. 계산식은 유지하고 결과를 size_t로 받으며 불필요한 캐스트는 추가하지 않았다.
+- 변경은 지정한 선언과 직접 include에 한정한다. captureCenter 람다의 auto, 반복·기존 요소 참조 등의 기존 사용 기준은 유지한다. 자료형 선택 초안 전체를 공통 채택하지 않으며 새 타입 별칭·변환 도우미는 추가하지 않았다.
+- 검증: MSVC v145/14.51.36231·C++20의 x64 Debug·Release에서 WindowSmoke·RendererSmoke 빌드·실행 성공. WindowSmoke는 입력 소비·캡처/포커스/모달 초기화·리사이즈·종료·수명 검증을 통과했다. RendererSmoke는 CPU 계약·PNG·카메라와 GPU 텍스처/Phong/가림을 통과했으며 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0이다.
+- 선언 13개와 optional 직접 include를 제외한 두 테스트 파일의 내용이 기존 코드와 같음을 대조했다. 문서 링크·파일 형식·git diff --check도 확인했다. Sandbox의 코드·헤더는 이번에 변경하지 않아 빌드·실행 대상에서 제외했으며 실제 화면·장치 입력은 선언 정리 범위여서 확인하지 않았다. 기존 Capture의 nodiscard와 미커밋 문서 변경은 유지했다.
+
+### Readback 결과 확인 진단 적용 (2026-10-20)
+
+- [RendererReadback::Capture](../Tests/RendererReadback.h)에 `[[nodiscard]]`를 적용했다. 실패 시 픽셀 검증을 중단해야 하는 기존 반환 계약을 호출자가 확인하도록 진단하기 위한 선언 보강이다. [채택된 반환값 규칙](https://rniman.github.io/convention/coding/cpp/functions/#반환값-무시와-nodiscard)을 적용했으며 attribute 문서 전체의 공통 초안 상태는 유지한다.
+- RendererSmoke·LightingChecks의 Capture 호출 12개는 모두 실패 시 검증을 중단한다. 호출부·실행 로직·출력 버퍼의 부분 변경 가능성·GPU 자원 수명은 유지했다. 결과를 변수에 저장하는 것만으로 성공 여부 검사가 보장되지는 않으며, 기존 실패 처리가 계속 필요하다.
+- 검증: MSVC v145/14.51.36231·C++20에서 Debug·Release RendererSmoke 빌드·실행 성공. 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0을 확인했다. PNG·Transform·카메라·조명과 GPU 텍스처/Phong/가림 검증도 통과했다.
+- 구성별 최소 번역 단위에서 Capture 결과를 버리는 코드는 C4834를 진단했고 `/WX`에서 컴파일 실패했다. 결과를 상위 호출자에게 반환하는 코드는 PCH·강제 include 없이 `/Zs /Y- /W4 /WX` 컴파일을 통과했다. 진단 검증용 파일은 obj 아래에만 생성했으며 프로젝트의 경고 설정은 변경하지 않았다.
+- Sandbox·WindowSmoke는 이 테스트 어댑터를 사용하지 않아 이번 빌드·실행 대상에서 제외했다. 화면·장치 입력 확인은 선언의 진단 보강 범위여서 수행하지 않았다. 문서 링크·파일 형식·git diff --check를 확인했으며 기존 미커밋 문서 변경은 유지했다.
 
 ### 단일 루트 네임스페이스 적용 (2026-10-20)
 
@@ -40,7 +56,7 @@
 
 - 공개 baseline 조회가 실패하여 현재 공개본과의 일치는 확인하지 못했다. 임시 참고 자료는 로컬 `D:/Docs/Convention/docs/`의 baseline·C++ 명명·초기화·헤더·자료형 선택 문서다. 명명·초기화·헤더는 채택, 자료형 선택은 초안으로 구분했다. 위키 문서 수정은 수행하지 않았다.
 - 사용자 선택으로 Sandbox의 실패 가능한 `std::optional`·이름 있는 결과 구조체, DirectX 행렬·벡터·저장 타입, 경로·입력/창 상태와 D3D12 descriptor의 타입을 명시했다. 영향받는 RendererSmoke·LightingChecks·RendererReadback도 같은 기준으로 맞췄다. 이 범위를 프로젝트 한정 채택으로 기록하며 자료형 초안 전체를 공통 채택으로 확대하지 않는다.
-- 범위 반복, 기존 요소의 참조, 오른쪽 캐스트로 타입이 드러나는 포인터, chrono 시각과 람다는 `auto`를 유지한다. WindowSmoke의 선언은 이번 적용 범위에서 제외했다. 이후 해당 코드를 변경할 때 실패 계약이나 값/참조 구분이 중요하면 같은 기준으로 검토한다. 현재 규칙에 따른 미적용 의무 항목은 아니다.
+- 범위 반복, 기존 요소의 참조, 오른쪽 캐스트로 타입이 드러나는 포인터, chrono 시각과 람다는 `auto`를 유지한다. 10월 15일 적용에서는 WindowSmoke의 선언을 제외했다. 해당 선언은 [10월 20일 후속 적용](#테스트-상태와-픽셀-인덱스-타입-명시-2026-10-20)에서 명시적 타입으로 맞췄다.
 - `RenderObject` → `ObjectTransformConstants`, `CreateRenderObject` → `BuildObjectTransformConstants`로 앱·렌더러·검증 코드·설계 문서를 함께 변경했다. 장면 오브젝트 생성과 변환 상수 계산의 구분이 목적이며 행렬 계산·실패 계약·192바이트 레이아웃·GPU 전달 방식은 유지한다.
 - EXE 폴더를 Assets 폴더로 오해하지 않도록 `AssetDirectoryResult` → `ExecutableDirectoryResult`, 호출부의 변수 → `executableDirectoryResult`로 맞췄다. 공통 계산은 기존 RenderData와 EXE 경로 함수에서 계속 공유하며 새 범용 추상화는 추가하지 않았다.
 - 검증: x64 Debug·Release 솔루션 빌드 성공. RendererSmoke는 두 구성 모두 CPU 행렬/실패 계약·PNG·카메라·조명과 GPU 텍스처/Phong/가림을 통과했고 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0을 확인했다. WindowSmoke도 두 구성 종료 코드 0이다.
