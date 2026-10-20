@@ -25,13 +25,13 @@ D3D12 기반의 미니 게임 엔진. 장면 구성, 입력, 게임 로직, 렌�
 
 확인한 개발 환경:
 
-- Visual Studio Community 2026 18.10.3, C++ 데스크톱 개발 도구
+- Visual Studio Community 2026 18.11.0, C++ 데스크톱 개발 도구
 - MSVC `v145` / `14.51.36231`, Windows SDK `10.0.26100.0`
 - C++20, x64, Debug·Release
 
 [솔루션](RnimanEngine.slnx)을 열고 `Sandbox`를 시작 프로젝트로 선택한다. x64 Debug 또는 Release를 빌드한 뒤 실행한다. 빌드 전에 아래 BaseColor 에셋을 준비한다. 창 닫기 또는 Alt+F4로 종료한다. D3D12 Feature Level 11_0을 지원하는 하드웨어가 필요하며 WARP로 자동 대체하지 않는다. Debug 실행에는 Windows 선택적 기능 Graphics Tools가 필요하다. 없으면 초기화 오류를 보고하며, Release 앱은 디버그 레이어를 요구하지 않는다.
 
-사용자가 준비한 `BrickWall17_MR_1K`의 `BrickWall17_1K_BaseColor.png`를 다음 위치에 둔다.
+별도로 준비한 `BrickWall17_MR_1K`의 `BrickWall17_1K_BaseColor.png`를 다음 위치에 둔다.
 
 ```text
 Assets/BrickWall17_MR_1K/BrickWall17_1K_BaseColor.png

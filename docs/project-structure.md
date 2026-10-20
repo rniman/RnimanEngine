@@ -48,7 +48,21 @@ RnimanEngine/
 
 SandboxApp이 창 → CPU PNG 디코딩 → 렌더러·텍스처 업로드 순으로 초기화하고 렌더러 → 창 순으로 정리한다. Win32Window는 입력을 수집하고 앱이 프레임마다 소비하며, D3D12Renderer는 초기화 중 CPU RGBA8 이미지를 복사하고 GPU 완료까지 업로드 메모리를 유지하며, 전달받은 오브젝트 행렬·프레임 조명을 렌더 호출 중 복사한다. 앱이 카메라·조명 상태와 입력을 해석하고, RenderData가 GPU 자원 없이 WVP·World·역전치 법선 행렬을 만든다. 상세 진입점·데이터 흐름과 수명 제약은 [Architecture](design.md#진입점과-수명)에서 관리한다. 현재 공용 Engine 라이브러리와 별도 Scene·Input 계층은 없다.
 
+### 현재 include 기준과 허용 의존성
+
+2026-10-20 컨벤션 재검토에서 기존 코드·프로젝트 설정을 확인해 명시했다. [공통 구조 규칙](https://rniman.github.io/convention/coding/cpp/project-structure/#프로젝트-내부-파일-배치)의 include 기준·허용 의존성 기록이며, 경로·공개 API·빌드 단위 변경은 없다.
+
+| 대상 | 현재 탐색 기준·사용 범위 |
+|---|---|
+| Sandbox | vcxproj의 `$(MSBuildProjectDirectory)`인 `Sandbox/`를 기준으로 `"RenderData.h"` 등의 프로젝트 헤더를 포함. 구현은 PCH를 먼저 포함하고 일반 헤더는 PCH 없이 필요한 의존성을 직접 확보 |
+| RendererSmoke·WindowSmoke | 두 vcxproj가 `$(MSBuildProjectDirectory)/../Sandbox`를 추가 include 경로로 사용. Tests 내부 헤더는 같은 디렉터리에서 포함. `../`는 빌드 설정의 실제 입력 경로에만 쓰며 C++ include에 연쇄 상대 경로를 넣지 않음 |
+| 테스트 원본 공유 | RendererSmoke는 D3D12Renderer.cpp·AssetLoader.cpp, WindowSmoke는 Win32Window.cpp 원본을 PCH 없이 직접 컴파일. 별도 EXE마다 필요한 구현을 빌드하는 의도적 공유이며 같은 EXE에 중복 등록하지 않음 |
+
+허용 의존성은 앱 → 창·카메라·조명·변환·로더·렌더러, 로더 → CPU ImageData·Windows/WIC, 렌더러 → ImageData·RenderData·EXE 경로 함수·D3D12다. 창은 GPU·카메라·테스트를 참조하지 않고, CPU 데이터·Transform·카메라·조명은 앱이나 렌더러 구현을 참조하지 않는다. 테스트는 해당 구현을 사용하며 RendererReadback만 검증용 friend로 렌더러 내부 큐·버퍼에 접근한다. Sandbox가 Tests 구현을 역참조하거나 실행 파일을 링크하는 의존성은 없다.
+
 현재 헤더는 이 저장소의 앱·테스트가 함께 사용하는 내부 코드이며 별도 배포 API 집합을 정하지 않았다. C++ 코드는 테스트를 포함해 `rengine` 단일 루트를 사용하며 폴더·프로젝트와 네임스페이스를 일대일로 대응시키지 않는다. `RendererReadback`의 friend와 `LightingChecks.h`의 전방 선언도 같은 루트에 있다. 범위·예외는 [네임스페이스 규약](design.md#네임스페이스)을 따른다.
+
+작은 평면 배치를 유지하고 `src/`·`include/`·기능별 필터는 도입하지 않았다. 공개 API 분리·재배치 시에는 제공할 헤더와 내부 경로·PCH 의존성, 실제 입력·필터·테스트 참조를 함께 확인한다. 경로 재배치 후보의 상태와 후속 조건은 [컨벤션 재검토](development.md#컨벤션-재검토와-후속-적용-2026-10-20)를 따른다.
 
 ## 향후 확장 구조
 
@@ -106,7 +120,7 @@ RnimanEngine/
 
 ### 개발 실행의 공용 에셋 경로
 
-2026-10-16 사용자 선택으로 루트 `Assets/`를 직접 읽도록 적용했다. Sandbox의 `CopySandboxTexture`와 RendererSmoke의 `CopyTextureFixture`를 제거하고 원본 누락을 알리는 검증 타깃만 유지한다. 빌드 후에도 PNG를 출력에 배치하지 않는다. 이전 빌드의 복사본은 런타임에서 읽거나 갱신하지 않는다.
+2026-10-16 루트 `Assets/`를 직접 읽도록 적용했다. Sandbox의 `CopySandboxTexture`와 RendererSmoke의 `CopyTextureFixture`를 제거하고 원본 누락을 알리는 검증 타깃만 유지한다. 빌드 후에도 PNG를 출력에 배치하지 않는다. 이전 빌드의 복사본은 런타임에서 읽거나 갱신하지 않는다.
 
 [SourcePaths.props](../Sandbox/SourcePaths.props)는 두 프로젝트가 `OutDir` 설정 뒤에 import한다. `MSBuild::MakeRelative(OutDir, EngineRoot)`로 계산한 경로를 슬래시 표기로 바꾸고 `RNIMAN_SOURCE_ROOT` wide 문자열 매크로로 전달한다. 기본 출력에서는 `../../../`지만 C++ 코드에는 상위 폴더 개수를 고정하지 않는다. 같은 드라이브의 다른 출력 깊이에도 빌드 설정으로 대응하며, 서로 다른 드라이브에서는 MSBuild 결과가 절대 경로일 수 있다.
 
@@ -135,7 +149,7 @@ RnimanEngine/
 ## 현재 설정과 적용 순서
 
 1. Sandbox·RendererSmoke·WindowSmoke의 출력은 `bin/<프로젝트>/<구성>`, 중간 산출물은 `obj/<프로젝트>/<구성>`으로 적용했다. 세 프로젝트 모두 x64로 유지한다.
-2. Sandbox 디버거 작업 디렉터리는 `$(OutDir)`로 적용했다. 큐브 CSO는 EXE 기준으로 로딩하며 Sandbox·RendererSmoke 빌드가 각 출력 폴더에 직접 생성한다. PNG는 SourcePaths.props의 원본 경로로 직접 읽고 출력에는 복사하지 않는다. 벽돌 원본 폴더는 사용자 요청의 Git 제외 예외이며 새 체크아웃에서는 별도로 준비한다.
+2. Sandbox 디버거 작업 디렉터리는 `$(OutDir)`로 적용했다. 큐브 CSO는 EXE 기준으로 로딩하며 Sandbox·RendererSmoke 빌드가 각 출력 폴더에 직접 생성한다. PNG는 SourcePaths.props의 원본 경로로 직접 읽고 출력에는 복사하지 않는다. 벽돌 원본 폴더는 Git 제외 대상이며 새 체크아웃에서는 별도로 준비한다.
 3. 추가 프로젝트·에셋·셰이더는 해당 기능을 구현할 때 연결한다. 루트의 `Directory.Build.props`를 자동으로 읽어 저장소 기준 출력 경로를 사용한다. 프로젝트별 `..` 개수에 의존하지 않는다.
 4. 출력 경로·파일 배치를 바꾸면 관련 문서와 제외 규칙을 맞추고, 영향받는 앱의 빌드 및 Visual Studio·EXE 직접 실행을 확인한다.
 
