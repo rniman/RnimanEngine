@@ -1,7 +1,7 @@
 #pragma once
 
-#include "D3D12Renderer.h"
-#include "RenderData.h"
+#include "Rendering/D3D12Renderer.h"
+#include "Rendering/RenderData.h"
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>

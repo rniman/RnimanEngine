@@ -1,10 +1,11 @@
 #pragma once
 
-#include "D3D12Renderer.h"
 #include "SandboxCamera.h"
 #include "SandboxLighting.h"
-#include "Transform.h"
-#include "Win32Window.h"
+
+#include "Math/Transform.h"
+#include "Platform/Win32Window.h"
+#include "Rendering/D3D12Renderer.h"
 
 #include <Windows.h>
 

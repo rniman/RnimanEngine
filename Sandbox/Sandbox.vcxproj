@@ -61,7 +61,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(ProjectName).pch</PrecompiledHeaderOutputFile>
-      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);$(EngineRoot)Engine;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -88,7 +88,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(ProjectName).pch</PrecompiledHeaderOutputFile>
-      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory);$(EngineRoot)Engine;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -100,26 +100,32 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="D3D12Renderer.h" />
+    <ClInclude Include="../Engine/Rendering/D3D12Renderer.h" />
     <ClInclude Include="SandboxApp.h" />
     <ClInclude Include="SandboxCamera.h" />
-    <ClInclude Include="Transform.h" />
-    <ClInclude Include="Win32Window.h" />
-    <ClCompile Include="D3D12Renderer.cpp" />
-    <ClCompile Include="AssetLoader.cpp" />
-    <ClInclude Include="AssetLoader.h" />
-    <ClInclude Include="ImageData.h" />
-    <ClInclude Include="RenderData.h" />
+    <ClInclude Include="../Engine/Math/Transform.h" />
+    <ClInclude Include="../Engine/Platform/Win32Window.h" />
+    <ClCompile Include="../Engine/Rendering/D3D12Renderer.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="../Engine/Assets/AssetLoader.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClInclude Include="../Engine/Assets/AssetLoader.h" />
+    <ClInclude Include="../Engine/Assets/ImageData.h" />
+    <ClInclude Include="../Engine/Rendering/RenderData.h" />
     <ClInclude Include="SandboxLighting.h" />
     <ClCompile Include="SandboxApp.cpp" />
-    <ClCompile Include="Win32Window.cpp" />
+    <ClCompile Include="../Engine/Platform/Win32Window.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClInclude Include="pch.h" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
-  <Import Project="SourcePaths.props" />
+  <Import Project="../Build/SourcePaths.props" />
   <Import Project="CubeShaders.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="ValidateSandboxTexture" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true'">

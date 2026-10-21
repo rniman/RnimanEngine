@@ -1,13 +1,14 @@
 #include "pch.h"
 #include "SandboxApp.h"
 
-#include "AssetLoader.h"
-#include "D3D12Renderer.h"
-#include "RenderData.h"
 #include "SandboxCamera.h"
 #include "SandboxLighting.h"
-#include "Transform.h"
-#include "Win32Window.h"
+
+#include "Assets/AssetLoader.h"
+#include "Math/Transform.h"
+#include "Platform/Win32Window.h"
+#include "Rendering/D3D12Renderer.h"
+#include "Rendering/RenderData.h"
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>

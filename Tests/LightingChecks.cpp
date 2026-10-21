@@ -1,9 +1,10 @@
 #include "LightingChecks.h"
 
-#include "D3D12Renderer.h"
-#include "RenderData.h"
 #include "RendererReadback.h"
 #include "SandboxLighting.h"
+
+#include "Rendering/D3D12Renderer.h"
+#include "Rendering/RenderData.h"
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>

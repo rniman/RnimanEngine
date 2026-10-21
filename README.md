@@ -6,6 +6,8 @@ D3D12 기반의 미니 게임 엔진. 장면 구성, 입력, 게임 로직, 렌�
 
 **첫 마일스톤 달성:** 직접 정의한 메시·텍스처·카메라·기본 Phong 조명을 연결한 Sandbox 데모를 문서의 절차로 빌드·실행할 수 있다. 위치·크기가 다른 큐브 3개를 렌더링하며 카메라와 방향광을 조절한다.
 
+공통 소스는 `Engine/`, 데모의 실행·조작 코드는 `Sandbox/`에 배치한다. 현재 세 실행 프로젝트가 필요한 Engine 원본을 직접 컴파일하며 별도 엔진 라이브러리는 아직 없다.
+
 다음 단계는 일반 오브젝트 방식과 ECS 비교다. ECS·Unity 익스포터/로더·PBR은 아직 구현하지 않았다. [로드맵](docs/roadmap.md) · [Architecture와 좌표계 규약](docs/design.md) · [첫 마일스톤 기록](docs/milestones/v0.1.0-sandbox.md)을 참고한다.
 
 ## 카메라 조작
@@ -39,7 +41,7 @@ Assets/BrickWall17_MR_1K/BrickWall17_1K_BaseColor.png
 
 저장소 루트의 `Assets/` 전체는 로컬 에셋 보관용으로 Git에서 제외한다. `Tests/Assets/`의 테스트 기준 이미지는 저장소에 포함한다. 새 체크아웃에서도 BaseColor를 별도로 준비해야 하며, 없으면 Sandbox 빌드가 원본 경로와 준비 안내를 표시하고 실패한다. Sandbox의 Debug·Release는 루트 `Assets/`의 같은 PNG를 직접 읽으며 출력 폴더에 복사하지 않는다. 현재 기준 이미지는 1024×1024 PNG다. 나머지 Normal·Roughness·AO·Height는 사용하지 않는다. DDS·압축·밉맵 생성·변환 캐시는 아직 없다.
 
-공용 경로는 [SourcePaths.props](Sandbox/SourcePaths.props)가 빌드 시 계산하는 EXE→저장소 루트 경로를 사용한다. 실행 중 폴더를 검색하거나 작업 디렉터리에 의존하지 않는다. 배치와 후속 계획은 [개발 실행의 공용 에셋 경로](docs/project-structure.md#개발-실행의-공용-에셋-경로)를 참고한다. 런타임 경로 설정 파일과 독립 배포 패키징은 아직 구현하지 않았다.
+공용 경로는 [SourcePaths.props](Build/SourcePaths.props)가 빌드 시 계산하는 EXE→저장소 루트 경로를 사용한다. 실행 중 폴더를 검색하거나 작업 디렉터리에 의존하지 않는다. 배치와 후속 계획은 [개발 실행의 공용 에셋 경로](docs/project-structure.md#개발-실행의-공용-에셋-경로)를 참고한다. 런타임 경로 설정 파일과 독립 배포 패키징은 아직 구현하지 않았다.
 
 저장소 루트의 Developer PowerShell에서:
 
@@ -56,7 +58,7 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 
 ## 코드와 문서 안내
 
-대표 실행 프로젝트는 [Sandbox](Sandbox/Sandbox.vcxproj) 하나다. 진입점 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain`은 [rengine::SandboxApp](Sandbox/SandboxApp.cpp)을 생성하고 `Run`을 호출한다. 앱은 [Win32Window](Sandbox/Win32Window.cpp)의 창 생성 → [AssetLoader](Sandbox/AssetLoader.cpp)의 PNG 디코딩 → [D3D12Renderer](Sandbox/D3D12Renderer.cpp) 초기화·텍스처 업로드 → 메시지 처리 → 리사이즈 → 입력·Transform 갱신 → 렌더링 → GPU 완료 확인 → RAII 정리 순서로 실행한다. 현재 파일별 책임과 두 Smoke 프로젝트의 역할은 [현재 프로젝트와 코드](docs/project-structure.md#현재-프로젝트와-코드)에서 확인한다. 엔진 라이브러리와 추가 샘플은 필요할 때 분리한다.
+대표 실행 프로젝트는 [Sandbox](Sandbox/Sandbox.vcxproj) 하나다. 진입점 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain`은 [rengine::SandboxApp](Sandbox/SandboxApp.cpp)을 생성하고 `Run`을 호출한다. 앱은 [Win32Window](Engine/Platform/Win32Window.cpp)의 창 생성 → [AssetLoader](Engine/Assets/AssetLoader.cpp)의 PNG 디코딩 → [D3D12Renderer](Engine/Rendering/D3D12Renderer.cpp) 초기화·텍스처 업로드 → 메시지 처리 → 리사이즈 → 입력·Transform 갱신 → 렌더링 → GPU 완료 확인 → RAII 정리 순서로 실행한다. 공통 소스의 소속·의존성과 두 Smoke 프로젝트의 역할은 [현재 프로젝트와 코드](docs/project-structure.md#현재-프로젝트와-코드)에서 확인한다. 엔진 라이브러리와 추가 샘플은 필요할 때 분리한다.
 
 직접 작성한 C++ 타입·함수는 Sandbox 전용 코드와 테스트를 포함해 `rengine` 단일 루트 네임스페이스를 사용한다. `main`·`wWinMain`은 전역 진입점이며 외부 API와 HLSL 이름은 원래 표기를 유지한다. 적용 범위와 호출 예시는 [네임스페이스 규약](docs/design.md#네임스페이스)을 따른다.
 

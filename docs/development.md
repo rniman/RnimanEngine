@@ -16,19 +16,31 @@
 |---|---|
 | 확인 범위 | 2026-10-20 공개 baseline·채택 문서 14개·관련 초안 6개·프로젝트 참조 문서 확인. 위키 원본 `4beaa82`와 엔진 `087570c` 기준의 [최초 검토](#컨벤션-재검토와-후속-적용-2026-10-20), 이후 [rengine 적용](#단일-루트-네임스페이스-적용-2026-10-20)과 과거 [마일스톤 기록](milestones/v0.1.0-sandbox.md#컨벤션-확인-기록-2026-10-13)을 구분 |
 | 실제 적용 | 기존 적용 범위의 명명·포맷·초기화·const·직접 include·한국어 API 주석·반환 계약·소유권·특수 멤버 유지. RendererReadback::Capture에 nodiscard 적용. GetWorld/GetView는 단순 계산 API로 nodiscard 비적용. 타입 명시는 10월 15일 범위와 20일 WindowSmoke·LightingChecks의 지정 변수에 적용. 공용 원본 경로는 10월 16일 적용 범위 유지. rengine 적용 후 CPU/GPU 회귀 검증 재실행. 셰이더 패킹 확인은 과거 검증 유지 |
-| 프로젝트 한정 채택 | 창·렌더러 소유 분리, 고성능 하드웨어 우선·WARP 자동 대체 없음, 프레임 경계 리사이즈, 슬롯 재사용 전 Fence 대기, Sandbox·테스트 C++ 코드의 rengine 단일 루트 |
+| 프로젝트 한정 채택 | 창·렌더러 소유 분리, 고성능 하드웨어 우선·WARP 자동 대체 없음, 프레임 경계 리사이즈, 슬롯 재사용 전 Fence 대기, Engine·Sandbox·테스트 C++ 코드의 rengine 단일 루트·Engine/Sandbox 소스 소속 분리 |
 | 시험 적용 | WIC·STA·RGBA8, sRGB·단일 밉·선형 Clamp, ComPtr·Event 수명·bool/HRESULT 진단, Debug 레이어·두 백 버퍼·VSync, FXC·SM5.0·D32·카메라·Transform·Phong·테스트 readback |
-| 예외·미정·후속 | PCH는 자기 헤더보다 먼저 포함. Windows→DirectX include 순서·긴 오류 문자열 예외 유지. 평면 파일 배치는 허용 범위. main·wWinMain과 외부 API·HLSL은 rengine 적용 대상에서 제외. 파일 재배치는 아래 후보 참고. 로컬 정면·거리 단위·외부 에셋 변환은 실제 사용 시 결정. 비정방 행렬·행렬 배열은 도입 시 별도 패킹 검증 |
+| 예외·미정·후속 | Sandbox 전용 구현은 PCH를 자기 헤더보다 먼저 포함하며 Engine 구현은 PCH 비사용. Windows→DirectX include 순서·긴 오류 문자열 예외 유지. Sandbox·Tests의 소규모 평면 배치는 유지하고 Engine은 기능별로 배치. main·wWinMain과 외부 API·HLSL은 rengine 적용 대상에서 제외. 소스 소속 분리와 추후 라이브러리 경계는 아래 적용 기록 참고. 로컬 정면·거리 단위·외부 에셋 변환은 실제 사용 시 결정. 비정방 행렬·행렬 배열은 도입 시 별도 패킹 검증 |
 | 초안 | C++ 자료형·변환·attribute·클래스 미결정 정책과 HLSL·검증·원본/생성물 규칙은 공통 초안 유지. 기존 프로젝트 한정 결정과 구분 |
 
 프로젝트의 [구현 선택과 후속 조건](design.md#구현-선택과-후속-조건)을 따른다. 규칙 변경 시 해당 범위의 코드·설정을 확인하고, 확인만 한 항목과 실제 수정·시험 적용한 항목을 구분한다. 적용하지 못하면 대상·이유·후속 조건을 남긴다. 적용별 근거는 아래 기록에, 마일스톤 검증은 해당 마일스톤에 기록한다.
+
+### Engine과 Sandbox 소스 소속 분리 (2026-10-20)
+
+- Phong 데모와 일반 오브젝트·ECS 단계 사이에서 공통 코드의 소속을 먼저 정리했다. 창·이미지 로딩·렌더링·렌더 데이터·Transform의 C++ 9개 파일은 Engine의 Platform·Assets·Rendering·Math에, 실행·장면 구성·카메라/조명 조작은 Sandbox에 둔다. 세 실행 프로젝트와 `rengine` 단일 루트를 유지하며 별도 라이브러리·추상 API는 추가하지 않았다.
+- 웹 조회 도구는 공개 위키에 접근하지 못했지만 읽기 전용 HTTP 조회로 baseline·프로젝트 구조·헤더 문서의 응답 200을 재확인했다. 로컬 위키 `4beaa82`는 깨끗했으며 해당 채택 규칙의 파일 동시 배치·include 기준·허용 의존성과 PCH 예외를 확인했다. 위키 문서는 수정하지 않았다.
+- Engine 구현 3개는 Sandbox PCH include를 제거하고 Sandbox 프로젝트에서도 파일별 PCH 비사용으로 빌드한다. Engine은 Sandbox include 경로 없이 사용할 수 있다. Sandbox와 RendererSmoke는 Engine·Sandbox 루트를, WindowSmoke는 Engine 루트만 사용한다. 실제 경로·프로젝트 입력·Sandbox의 기능별 필터·문서 링크를 함께 갱신했다.
+- 공통 원본 경로 설정은 `Build/SourcePaths.props`로 옮기고 두 소비자의 import를 갱신했다. `Sandbox/CubeShaders.props`와 `Shaders/Samples/Sandbox/`는 큐브 데모 설정으로 유지한다. RendererSmoke가 데모 카메라·조명을 검증하는 참조도 유지한다.
+- 알고리즘·공개 타입·호출 순서·자원 수명·오류 처리·CPU/HLSL 레이아웃·에셋/출력 경로는 유지한다. 현재 렌더러의 고정 큐브·Phong 파이프라인과 창의 Sandbox 이름·기본값은 남은 제약이며 실제 재사용 시 API 분리를 검토한다. 이후 라이브러리 분리에서도 소비자의 프로젝트 참조·초기화 계약 변경은 필요할 수 있다.
+- 검증: Visual Studio Community 2026 18.11.0·MSVC v145/14.51.36231·SDK 10.0.26100.0·C++20·Unicode의 x64 Debug·Release 솔루션 빌드 성공. 두 구성 모두 RendererSmoke·WindowSmoke를 TEMP 작업 디렉터리에서 실행해 통과했다. RendererSmoke는 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0이며 CPU 행렬/카메라/조명·PNG·GPU 텍스처/Phong/가림을 확인했다.
+- 구성별로 Engine 헤더 6개와 구현 3개를 Engine include 경로만 사용해 PCH·강제 include 없이 `/Zs /Y- /W4 /WX` 컴파일했다. 소비자 헤더 5개도 해당 include 루트에서 독립 컴파일을 통과했다. 프로젝트별 원본 입력·중복 등록·import·PCH 비사용 설정과 필터 참조를 대조했으며, 숨김 Visual Studio 자동화로 세 C++ 프로젝트 로드와 Sandbox의 Engine 기능별 필터가 실제 파일 9개를 가리킴을 확인했다.
+- Sandbox는 두 구성 모두 실제 BaseColor·TEMP 작업 디렉터리·숨김 창으로 실행해 합성 조명 키·포커스 해제·리사이즈 2회·WM_CLOSE 종료 코드 0·창 파괴를 확인했다. 셰이더 소스·CPU/HLSL 계약이 그대로여서 패킹 dumpbin 대조는 과거 검증을 유지한다.
+- C++ 21개 파일은 include·공백을 제외한 내용이 이동 전과 같고 SourcePaths.props 내용도 동일하다. 저장소 문서의 로컬 링크·앵커와 변경 파일의 UTF-8/BOM 없음·LF·끝 개행·git diff --check를 확인했다. 기존 DirectXMath 문서 정리는 보존했으며 원본 에셋·손상 PNG 테스트 파일을 변경 사항에 포함하지 않았다.
 
 <a name="행렬-계산-결과-진단-적용-2026-10-20"></a>
 
 ### nodiscard 적용 범위 (2026-10-20)
 
 - [반환값 규칙](https://rniman.github.io/convention/coding/cpp/functions/#반환값-무시와-nodiscard)에 따라 Getter라는 이유로 `[[nodiscard]]`를 일괄 적용하지 않는다. 이 프로젝트에서는 성공 여부·완료 여부 등 반환값 확인이 후속 동작의 전제인 API에 우선 적용한다.
-- [Transform::GetWorld](../Sandbox/Transform.h)·[SandboxCamera::GetView](../Sandbox/SandboxCamera.h)는 상태 변경이나 자원 처리가 없는 행렬 계산이므로 `[[nodiscard]]`를 사용하지 않는다. 반환형·const·행렬 계산·기존 호출부의 결과 사용은 유지한다.
+- [Transform::GetWorld](../Engine/Math/Transform.h)·[SandboxCamera::GetView](../Sandbox/SandboxCamera.h)는 상태 변경이나 자원 처리가 없는 행렬 계산이므로 `[[nodiscard]]`를 사용하지 않는다. 반환형·const·행렬 계산·기존 호출부의 결과 사용은 유지한다.
 - [RendererReadback::Capture](../Tests/RendererReadback.h)는 실패 시 픽셀 검증을 중단해야 하므로 `[[nodiscard]]`를 유지한다. 기존 초기화·GPU 대기·입력 소비 API의 표기도 유지하며 경고 설정·공통 attribute 초안의 상태는 변경하지 않는다.
 - 검증: MSVC v145/14.51.36231·C++20의 x64 Debug·Release 솔루션 빌드 성공. RendererSmoke는 두 구성 모두 CPU 계약·PNG·카메라와 GPU 텍스처/Phong/가림을 통과했고 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0이다.
 - 구성별 최소 번역 단위에서 GetWorld·GetView의 결과를 버리는 호출이 PCH·강제 include 없이 `/Zs /Y- /W4 /WX` 컴파일을 통과했다. Capture 결과를 버리는 코드는 계속 C4834를 진단하고 `/WX`에서 컴파일 실패했다.
@@ -81,17 +93,17 @@
 | 1 · 적용 완료 | [반환값 규칙](https://rniman.github.io/convention/coding/cpp/functions/#반환값-무시와-nodiscard), [RendererReadback::Capture](../Tests/RendererReadback.h) | `[[nodiscard]]`를 적용해 실패 시 검증을 중단해야 하는 기존 계약을 호출자 진단으로 드러냄. RendererSmoke·LightingChecks의 호출부는 기존 결과 검사 유지 | [적용·검증 기록](#readback-결과-확인-진단-적용-2026-10-20) 참고. attribute 문서 전체의 초안 상태와 구분 |
 | 2 · 적용 완료 | [네임스페이스 권장](https://rniman.github.io/convention/coding/cpp/naming/#네임스페이스), Sandbox·테스트의 타입·함수·전방 선언·friend | `rengine` 단일 루트 적용. Sandbox 전용 앱·카메라·조명과 테스트도 포함하며 하위 모듈은 추가하지 않음 | [실제 적용 기록](#단일-루트-네임스페이스-적용-2026-10-20) 참고. 폴더 재배치와 별개이며 main·wWinMain은 전역 유지 |
 | 3 · 적용 완료 | [auto 기준](https://rniman.github.io/convention/coding/cpp/auto/), [WindowSmoke](../Tests/WindowSmoke.cpp)의 State·InputState·optional 종료 코드, [LightingChecks](../Tests/LightingChecks.cpp)의 ambient·픽셀 index | State는 const 참조, InputState는 const 값, 종료 코드는 std::optional<int>로 명시. ambient는 FrameLighting, index는 std::size_t로 명시하고 기존 계산 범위를 확인 | [적용·검증 기록](#테스트-상태와-픽셀-인덱스-타입-명시-2026-10-20) 참고. 람다·chrono·범위 반복·기존 요소 참조·캐스트로 타입이 드러나는 포인터의 auto 유지 |
-| 4 · 비적용 | [반환값 규칙](https://rniman.github.io/convention/coding/cpp/functions/#반환값-무시와-nodiscard), [Transform::GetWorld](../Sandbox/Transform.h)·[SandboxCamera::GetView](../Sandbox/SandboxCamera.h) | 상태·자원을 변경하지 않는 단순 행렬 계산 API이므로 `[[nodiscard]]`를 사용하지 않음. 기존 호출부는 반환 행렬을 계속 사용 | [적용 범위와 검증](#nodiscard-적용-범위-2026-10-20) 참고. 실패 후 검증 중단이 필요한 Capture에는 유지 |
-| 5 · 필요 시 구조 정리 | [프로젝트 구조](https://rniman.github.io/convention/coding/cpp/project-structure/), [Sandbox 파일/필터](../Sandbox/Sandbox.vcxproj.filters) | 파일 탐색 부담이 생기면 App·Platform·Assets·Rendering·Math 등의 책임별 폴더에 헤더·구현을 함께 두고 필터를 맞추는 후보. 세부 이름·경계는 미확정 | 작은 프로젝트의 평면 배치는 허용된다. 현행 배치를 유지하며 파일 탐색 문제나 독립 빌드·API 경계가 생길 때 재검토. 폴더 정리를 이유로 src·include·새 라이브러리를 선행 도입하지 않음 |
+| 4 · 비적용 | [반환값 규칙](https://rniman.github.io/convention/coding/cpp/functions/#반환값-무시와-nodiscard), [Transform::GetWorld](../Engine/Math/Transform.h)·[SandboxCamera::GetView](../Sandbox/SandboxCamera.h) | 상태·자원을 변경하지 않는 단순 행렬 계산 API이므로 `[[nodiscard]]`를 사용하지 않음. 기존 호출부는 반환 행렬을 계속 사용 | [적용 범위와 검증](#nodiscard-적용-범위-2026-10-20) 참고. 실패 후 검증 중단이 필요한 Capture에는 유지 |
+| 5 · 소스 소속 분리 적용 | [프로젝트 구조](https://rniman.github.io/convention/coding/cpp/project-structure/), Engine·Sandbox·테스트 프로젝트/필터 | 공통 소스는 Engine의 기능별 폴더에, 데모 실행·조작은 Sandbox에 배치. 실제 입력·include·필터를 함께 수정 | [적용 기록](#engine과-sandbox-소스-소속-분리-2026-10-20) 참고. 별도 라이브러리·공개 API 분리는 실제 독립 빌드·재사용 수요가 생길 때 검토 |
 
-폴더 재배치 시 프로젝트 입력·include·필터와 두 Smoke가 직접 빌드하는 Sandbox 원본 경로를 함께 맞춘다. `RendererReadback`의 friend와 `LightingChecks.h`의 전방 선언은 같은 `rengine` 타입을 계속 가리켜야 한다. 실제 공유 코드는 원본 한곳을 계속 참조하며 새 복사본을 만들지 않는다. 현재 확인된 사용처만으로 기존 RenderData·경로/셰이더 props 외에 범용 매니저·기본 타입 별칭·변환 도우미를 추가할 이유는 없다.
+폴더 재배치 시 프로젝트 입력·include·필터와 두 Smoke가 직접 빌드하는 Engine 원본 경로를 함께 맞춘다. `RendererReadback`의 friend와 `LightingChecks.h`의 전방 선언은 같은 `rengine` 타입을 계속 가리켜야 한다. 실제 공유 코드는 원본 한곳을 계속 참조하며 새 복사본을 만들지 않는다. 현재 확인된 사용처만으로 기존 RenderData·경로/셰이더 props 외에 범용 매니저·기본 타입 별칭·변환 도우미를 추가할 이유는 없다.
 
 #### 문서 반영과 검토 결과
 
 | 대상 | 반영 내용·검토 결과 |
 |---|---|
 | 이 문서의 상태 표 | 공개본 확인일·범위와 auto·구조·네임스페이스의 채택 상태를 갱신. 과거 적용·검증과 이번 정적 대조를 구분하고 후속 후보를 명시 |
-| [프로젝트 구조](project-structure.md#현재-include-기준과-허용-의존성) | 구조 규칙에서 요구하는 include 기준·허용 의존성을 기존 vcxproj와 코드에 맞춰 명시. 새 경로·빌드 경계는 도입하지 않음 |
+| [프로젝트 구조](project-structure.md#현재-include-기준과-허용-의존성) | Engine/Sandbox 소스 소속과 include 기준·허용 의존성·PCH 및 소비자별 직접 원본 빌드를 명시. 빌드 단위는 기존 세 실행 프로젝트 유지 |
 | [설계의 후속 조건](design.md#구현-선택과-후속-조건) | 포괄적인 “미적용 항목 없음” 표현을 확인 범위·항목별 상태로 대체. Capture의 nodiscard·테스트 타입 명시와 GetWorld/GetView의 nodiscard 비적용 기준을 각각 적용 기록에 연결 |
 | 행렬·좌표계 | RenderData의 행 우선 저장, CubeVS의 행렬별 row_major·행 벡터 mul, 법선용 역전치와 CPU 크기/offset 검사는 현행 유지. 추가 전달 전치·열 우선 전환의 근거 없음. 셰이더 패킹 대조는 10월 13일 검증을 유지하며, 후속 코드 적용에서는 위 기록대로 CPU/GPU 회귀 검증을 재실행 |
 | 소유권·오류·주석 | 앱의 창/렌더러 역순 정리, COM/ComPtr·Fence 수명과 반환 실패 처리를 유지. 소멸자 결과 무시의 기존 예외는 GPU 완료 보장이 아님. 모든 Getter의 주석·nodiscard·특수 멤버 다섯 선언을 기계적으로 추가하지 않음 |
@@ -117,8 +129,8 @@
 
 - 공개 baseline 조회가 실패하여 현재 공개본 일치는 확인하지 못했다. 로컬 `D:/Docs/Convention/docs/`의 최신 baseline·C++ 명명·초기화·auto·프로젝트 구조를 임시 참고했다. 로컬 baseline의 auto·프로젝트 구조 문서가 현재 채택 상태임을 확인했으며 이전 기록의 초안·확인 범위와 구분한다.
 - Sandbox의 루트 `Assets/` 직접 읽기와 PNG 빌드 복사 제거를 프로젝트 한정 채택했다. RendererSmoke도 `Tests/Assets/`를 공유하며 손상 PNG 쓰기는 테스트 출력으로 분리했다. 원본 누락의 빌드 오류·런타임 경로/API/HRESULT 진단은 유지한다.
-- 실제 두 소비자가 공유하는 빌드 설정을 `Sandbox/SourcePaths.props`로 분리했다. 확정된 `OutDir`와 `EngineRoot`로 원본 경로를 계산하여 전달하므로 개발자별 절대 경로나 고정된 상위 폴더 개수를 C++ 코드에 넣지 않는다. 런타임 경로 변경 요구가 없어 설정 파일 파서·원본 검색·범용 자원 시스템은 도입하지 않았다. 경로 계산은 앱·테스트에서, 디코딩은 AssetLoader에서, GPU 업로드는 렌더러에서 담당한다.
-- 새 경로 선언은 명시적 타입을 사용했다. 기존 클래스·네임스페이스의 일괄 재배치는 하지 않았으며 작은 Sandbox의 평면 파일 배치를 유지한다. SourcePaths.props는 실제 빌드에서 두 프로젝트가 import하는 공용 설정으로 추가했고 기존 include 기준·공개 API·C++ 소스/필터 배치는 변경하지 않았다. 위키 문서 편집은 수행하지 않았다.
+- 실제 두 소비자가 공유하는 빌드 설정을 `Sandbox/SourcePaths.props`로 분리했다. 이 설정은 10월 20일 소스 소속 정리에서 `Build/SourcePaths.props`로 이동했다. 확정된 `OutDir`와 `EngineRoot`로 원본 경로를 계산하여 전달하므로 개발자별 절대 경로나 고정된 상위 폴더 개수를 C++ 코드에 넣지 않는다. 런타임 경로 변경 요구가 없어 설정 파일 파서·원본 검색·범용 자원 시스템은 도입하지 않았다. 경로 계산은 앱·테스트에서, 디코딩은 AssetLoader에서, GPU 업로드는 렌더러에서 담당한다.
+- 새 경로 선언은 명시적 타입을 사용했다. 기존 클래스·네임스페이스의 일괄 재배치는 하지 않았으며 당시 Sandbox의 평면 파일 배치를 유지했다. SourcePaths.props는 실제 빌드에서 두 프로젝트가 import하는 공용 설정으로 추가했고 기존 include 기준·공개 API·C++ 소스/필터 배치는 변경하지 않았다. 위키 문서 편집은 수행하지 않았다.
 - 배포본의 독립 실행, 실행 중 에셋 추가·루트 선택, DDS 캐시는 후속 구현 범위다. 기본 출력 구조를 유지하여 저장소 전체를 이동하는 경우와 EXE만 옮기는 경우의 차이는 README와 프로젝트 구조 문서에 기록했다.
 - 검증: x64 Debug·Release 솔루션 빌드·RendererSmoke·WindowSmoke 성공. RendererSmoke는 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0이다. 최초 두 구성 빌드는 기존 MSPDB 제약을 피한 샌드박스 밖 VsDevCmd x64 환경에서 실행했고, 복사본 정리 후 재생성 여부 확인을 위한 빌드는 샌드박스 안에서도 성공했다.
 - 원본과 해시가 같은 기존 Sandbox·RendererSmoke의 Debug/Release PNG 복사본 4개만 삭제하고 다시 빌드해 재생성되지 않음을 확인했다. 두 구성 Sandbox를 TEMP 작업 디렉터리·숨김 창으로 각 2초 실행하고 WM_CLOSE 정상 종료 코드 0을 확인했다. 원본 PNG 2개의 해시가 그대로이며 손상 PNG 테스트 파일도 정리됐다.
@@ -141,7 +153,7 @@
 | 셰이더 | [CubeShaders.props](../Sandbox/CubeShaders.props)의 FXC·SM5.0·진입점 Main. 구성별 EXE 옆 `Shaders/`에 CSO 생성·EXE 기준 로딩 |
 | 파일·Git | [.editorconfig](../.editorconfig): UTF-8 BOM 없음·LF·끝 개행·C++ 탭 너비 4. [.gitattributes](../.gitattributes): 텍스트 LF, Windows 명령 스크립트 CRLF. [.gitignore](../.gitignore): 빌드 출력·개인 캐시·루트 `/Assets/` 제외, `Tests/Assets/` 추적 |
 
-일반 헤더는 PCH 없이 필요한 의존성을 직접 포함한다. Sandbox PCH는 `$(IntDir)$(ProjectName).pch`에 생성한다. Sandbox·RendererSmoke의 [SourcePaths.props](../Sandbox/SourcePaths.props)가 확정된 출력 위치에서 저장소까지의 경로를 `RNIMAN_SOURCE_ROOT`로 전달한다. PNG는 원본에서 직접 읽고 CSO는 EXE 옆 `Shaders/`에서 읽는다. 출력 폴더만 옮기는 독립 실행은 지원하지 않으며 출력 경로 변경 시 다시 빌드한다. 상세 경로는 [프로젝트 구조](project-structure.md#개발-실행의-공용-에셋-경로)와 README에서 관리한다.
+일반 헤더는 PCH 없이 필요한 의존성을 직접 포함한다. Sandbox PCH는 `$(IntDir)$(ProjectName).pch`에 생성하며 Engine 구현에는 사용하지 않는다. Sandbox·RendererSmoke의 [SourcePaths.props](../Build/SourcePaths.props)가 확정된 출력 위치에서 저장소까지의 경로를 `RNIMAN_SOURCE_ROOT`로 전달한다. PNG는 원본에서 직접 읽고 CSO는 EXE 옆 `Shaders/`에서 읽는다. 출력 폴더만 옮기는 독립 실행은 지원하지 않으며 출력 경로 변경 시 다시 빌드한다. 상세 경로는 [프로젝트 구조](project-structure.md#개발-실행의-공용-에셋-경로)와 README에서 관리한다.
 
 ## 검증 방법
 

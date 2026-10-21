@@ -1,5 +1,4 @@
-#include "pch.h"
-#include "Win32Window.h"
+#include "Platform/Win32Window.h"
 
 #include <Windows.h>
 #include <windowsx.h>

@@ -1,12 +1,13 @@
 // 별도 콘솔 테스트이므로 PCH 없이 컴파일한다.
-#include "AssetLoader.h"
-#include "D3D12Renderer.h"
-#include "ImageData.h"
 #include "LightingChecks.h"
-#include "RenderData.h"
 #include "RendererReadback.h"
 #include "SandboxCamera.h"
-#include "Transform.h"
+
+#include "Assets/AssetLoader.h"
+#include "Assets/ImageData.h"
+#include "Math/Transform.h"
+#include "Rendering/D3D12Renderer.h"
+#include "Rendering/RenderData.h"
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>

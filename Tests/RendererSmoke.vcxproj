@@ -23,7 +23,7 @@
       <ConformanceMode>true</ConformanceMode>
       <ExceptionHandling>Sync</ExceptionHandling>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>$(MSBuildProjectDirectory)/../Sandbox;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(EngineRoot)Engine;$(MSBuildProjectDirectory)/../Sandbox;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">_DEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)'=='Release'">NDEBUG;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -42,14 +42,14 @@
     <ClCompile Include="LightingChecks.cpp" />
     <ClInclude Include="LightingChecks.h" />
     <ClInclude Include="RendererReadback.h" />
-    <ClCompile Include="../Sandbox/D3D12Renderer.cpp" />
-    <ClCompile Include="../Sandbox/AssetLoader.cpp" />
-    <ClInclude Include="../Sandbox/AssetLoader.h" />
-    <ClInclude Include="../Sandbox/ImageData.h" />
-    <ClInclude Include="../Sandbox/RenderData.h" />
+    <ClCompile Include="../Engine/Rendering/D3D12Renderer.cpp" />
+    <ClCompile Include="../Engine/Assets/AssetLoader.cpp" />
+    <ClInclude Include="../Engine/Assets/AssetLoader.h" />
+    <ClInclude Include="../Engine/Assets/ImageData.h" />
+    <ClInclude Include="../Engine/Rendering/RenderData.h" />
     <ClInclude Include="../Sandbox/SandboxLighting.h" />
   </ItemGroup>
-  <Import Project="../Sandbox/SourcePaths.props" />
+  <Import Project="../Build/SourcePaths.props" />
   <Import Project="../Sandbox/CubeShaders.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="ValidateTextureFixture" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true'">

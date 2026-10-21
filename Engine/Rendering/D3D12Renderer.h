@@ -1,7 +1,8 @@
 #pragma once
 
-#include "ImageData.h"
-#include "RenderData.h"
+#include "Rendering/RenderData.h"
+
+#include "Assets/ImageData.h"
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>

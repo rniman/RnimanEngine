@@ -1,21 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClInclude Include="D3D12Renderer.h" />
-    <ClCompile Include="D3D12Renderer.cpp" />
-    <ClCompile Include="AssetLoader.cpp" />
-    <ClInclude Include="AssetLoader.h" />
-    <ClInclude Include="ImageData.h" />
-    <ClInclude Include="RenderData.h" />
+    <Filter Include="Engine">
+      <UniqueIdentifier>{98bd1b77-ad0c-4719-a59d-6126a76cebaa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Platform">
+      <UniqueIdentifier>{11fb6775-031f-4941-94ec-bf03fe9dd210}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Assets">
+      <UniqueIdentifier>{a7991db4-f5b3-451f-8351-6424b6ae2779}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Rendering">
+      <UniqueIdentifier>{fc4a1ab6-f68e-40ac-b99a-0fa57d4764eb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Math">
+      <UniqueIdentifier>{78160f4c-f3e6-4efb-a51c-2fa1644b9d57}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="../Engine/Rendering/D3D12Renderer.h">
+      <Filter>Engine\Rendering</Filter>
+    </ClInclude>
+    <ClCompile Include="../Engine/Rendering/D3D12Renderer.cpp">
+      <Filter>Engine\Rendering</Filter>
+    </ClCompile>
+    <ClCompile Include="../Engine/Assets/AssetLoader.cpp">
+      <Filter>Engine\Assets</Filter>
+    </ClCompile>
+    <ClInclude Include="../Engine/Assets/AssetLoader.h">
+      <Filter>Engine\Assets</Filter>
+    </ClInclude>
+    <ClInclude Include="../Engine/Assets/ImageData.h">
+      <Filter>Engine\Assets</Filter>
+    </ClInclude>
+    <ClInclude Include="../Engine/Rendering/RenderData.h">
+      <Filter>Engine\Rendering</Filter>
+    </ClInclude>
     <ClInclude Include="SandboxLighting.h" />
     <ClInclude Include="pch.h" />
     <ClCompile Include="Main.cpp" />
     <ClInclude Include="SandboxApp.h" />
     <ClCompile Include="SandboxApp.cpp" />
     <ClInclude Include="SandboxCamera.h" />
-    <ClInclude Include="Transform.h" />
-    <ClInclude Include="Win32Window.h" />
-    <ClCompile Include="Win32Window.cpp" />
+    <ClInclude Include="../Engine/Math/Transform.h">
+      <Filter>Engine\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="../Engine/Platform/Win32Window.h">
+      <Filter>Engine\Platform</Filter>
+    </ClInclude>
+    <ClCompile Include="../Engine/Platform/Win32Window.cpp">
+      <Filter>Engine\Platform</Filter>
+    </ClCompile>
     <ClCompile Include="pch.cpp" />
   </ItemGroup>
 </Project>

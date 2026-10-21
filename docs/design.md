@@ -6,7 +6,7 @@
 
 ## 설계 기준
 
-하나의 솔루션에서 작게 시작한다. 역할과 의존성은 구분하되, 실제 필요가 생길 때 프로젝트와 라이브러리 분리를 고려한다. 새로운 추상화에는 해결할 문제와 사용 예시가 있어야 한다.
+하나의 솔루션에서 공통 소스는 Engine, 데모 실행·조작 코드는 Sandbox에 배치한다. 현재는 세 실행 프로젝트가 필요한 공통 원본을 직접 빌드하며, 실제 필요가 생길 때 라이브러리 분리를 고려한다. 새로운 추상화에는 해결할 문제와 사용 예시가 있어야 한다.
 
 ```text
 입력 → 장면·게임 로직 갱신 → 렌더 데이터 수집 → D3D12 렌더러 → 화면 출력
@@ -17,11 +17,13 @@ Unity → bin → CPU 에셋 데이터 → 장면 구성 / GPU 리소스 생성
 
 2026-10-20 직접 작성한 C++ 코드의 단일 루트를 `rengine`으로 채택했다. 예를 들어 `rengine::Transform`, `rengine::D3D12Renderer`, `rengine::SandboxApp`, `rengine::LoadPngImage`로 사용한다. 이하 설명에서는 문맥이 분명하면 루트 이름을 생략한다.
 
-Sandbox의 데이터·수학·로더·창·렌더러·앱과 테스트의 RendererReadback·LightingChecks를 같은 루트에 둔다. 파일 내부 보조 타입·함수·상수는 그 안의 익명 네임스페이스에 유지한다. 헤더의 include는 네임스페이스 밖에 두고, 외부에서 사용할 때는 `rengine::`로 이름을 한정한다. 전역 별칭이나 헤더의 using namespace는 제공하지 않는다.
+Engine의 데이터·수학·로더·창·렌더러와 Sandbox의 앱·카메라·조명, 테스트의 RendererReadback·LightingChecks를 같은 루트에 둔다. 파일 내부 보조 타입·함수·상수는 그 안의 익명 네임스페이스에 유지한다. 헤더의 include는 네임스페이스 밖에 두고, 외부에서 사용할 때는 `rengine::`로 이름을 한정한다. 전역 별칭이나 헤더의 using namespace는 제공하지 않는다.
 
 `main`·`wWinMain`은 전역에 유지하고 제품 코드를 한정된 이름으로 호출한다. Win32·DirectX·표준 라이브러리·HLSL은 기존 계약을 유지한다. 폴더나 프로젝트 이름에 따라 하위 네임스페이스를 만들지 않으며, 향후 독립 API·이름 충돌이 생기면 별도로 검토한다. 실제 적용·검증 기록은 [개발 문서](development.md#단일-루트-네임스페이스-적용-2026-10-20)를 따른다.
 
 ### 책임과 의존성
+
+공통 원본은 Engine에 두고 Sandbox의 장면 구성·입력 조작·실행 수명과 구분한다. Engine은 Sandbox 헤더·PCH를 참조하지 않는다. 실제 배치·include 기준과 소비자별 원본 빌드 범위는 [프로젝트 구조](project-structure.md#현재-include-기준과-허용-의존성)를 따른다. 고정 큐브·Phong 파이프라인은 현재 렌더러의 제한으로 유지하며, 소스 이동을 범용 렌더링 API 완성으로 취급하지 않는다.
 
 - 앱은 실행 수명주기와 엔진 구성을, 장면·ECS는 게임 상태와 갱신을 담당한다. Application·Scene과 ECS는 함께 사용할 수 있다.
 - 렌더 데이터 수집 단계가 장면과 렌더러를 연결한다. 게임 로직과 ECS 저장소는 API 전용 명령 목록·디스크립터·PSO를 직접 다루지 않는다.
@@ -81,7 +83,7 @@ Entity 재사용과 오래된 핸들, 컴포넌트 참조 무효화, 순회 중 
 
 ### 창·입력
 
-[Win32Window](../Sandbox/Win32Window.h)는 창 하나·UI 스레드에서 창 수명·메시지·입력을 담당하며 GPU·카메라를 참조하지 않는다.
+[Win32Window](../Engine/Platform/Win32Window.h)는 창 하나·UI 스레드에서 창 수명·메시지·입력을 담당하며 GPU·카메라를 참조하지 않는다.
 
 - `GetState`로 크기·최소화·포커스·리사이즈 요청을 읽는다. 앱은 GPU 리사이즈 성공 후 `ClearResizeRequest`를 호출하며 최소화·0 크기에서는 메시지를 기다린다.
 - `ConsumeInput`은 복사본을 반환한다. 키 눌림은 유지하고 누적 마우스 이동·시간 초기화 요청을 비운다. 포커스 해제·최소화·모달 조작은 입력을 초기화하고 캡처 상실은 드래그를 중단한다.
@@ -93,11 +95,11 @@ Entity 재사용과 오래된 핸들, 컴포넌트 참조 무효화, 순회 중 
 
 SandboxApp은 창·렌더러·카메라·조명·큐브 3개를 소유하며 복사·이동하지 않는다. `Run`은 한 번만 호출하며 메시지 → 최소화 대기 → 프레임 경계 리사이즈 → 입력 소비 → `Update` → `Render`를 반복한다. 정상 종료는 GPU 완료 후 WM_QUIT 코드, 초기화·실행·GPU 대기 실패는 1을 반환한다.
 
-입력 해석은 앱, GPU 명령·동기화는 렌더러의 책임이다. 포커스가 있을 때 카메라·조명을 조절하며 입력 초기화 직후 이동 시간은 0, 일반 프레임은 최대 0.1초다. 큐브 회전은 입력 중단과 무관한 절대 경과 시간을 사용한다. [Transform](../Sandbox/Transform.h)은 `Scale * Rotation * Translation`, [SandboxCamera](../Sandbox/SandboxCamera.h)는 초기 위치 `(0, 2, -5)`·원점 시선을 사용한다. 조작·속도는 README를 따른다.
+입력 해석은 앱, GPU 명령·동기화는 렌더러의 책임이다. 포커스가 있을 때 카메라·조명을 조절하며 입력 초기화 직후 이동 시간은 0, 일반 프레임은 최대 0.1초다. 큐브 회전은 입력 중단과 무관한 절대 경과 시간을 사용한다. [Transform](../Engine/Math/Transform.h)은 `Scale * Rotation * Translation`, [SandboxCamera](../Sandbox/SandboxCamera.h)는 초기 위치 `(0, 2, -5)`·원점 시선을 사용한다. 조작·속도는 README를 따른다.
 
 ### 프레임별 Fence 동기화
 
-[D3D12Renderer](../Sandbox/D3D12Renderer.cpp)는 GPU 자원과 두 프레임 슬롯의 Allocator·Constant Buffer·마지막 제출 Fence를 소유한다. 단일 Command List·Direct Queue·Fence/Event를 공유한다.
+[D3D12Renderer](../Engine/Rendering/D3D12Renderer.cpp)는 GPU 자원과 두 프레임 슬롯의 Allocator·Constant Buffer·마지막 제출 Fence를 소유한다. 단일 Command List·Direct Queue·Fence/Event를 공유한다.
 
 슬롯 Fence 대기 → 상수 복사 → Allocator/List Reset → 색상·깊이 clear/draw → PRESENT 복귀 → 제출·Present·Signal 순서다. Fence는 단조 증가하고 완료 값 `UINT64_MAX`는 장치 제거로 처리한다. 리사이즈·종료·미완료 제출이 있는 소멸자는 전체 GPU 완료를 시도하며 Signal·Present 실패도 정리 대상으로 남긴다. 소멸자의 `(void)WaitForGpu()`는 내부 진단 후 정리를 계속하는 예외이며 완료 보장을 뜻하지 않는다.
 
@@ -113,13 +115,13 @@ Resize는 동일 크기·0 크기를 무시하고 전체 GPU 대기 후 백 버�
 
 면별 위치·UV·법선 정점 24개와 `R16_UINT` 인덱스 36개의 고정 Upload Heap 메시를 공유한다. 왼손 View·Projection, 시계 방향 앞면·뒷면 컬링·전체 창 Viewport를 사용한다. D32 깊이는 매 프레임 1로 지우며 LESS·깊이 쓰기를 사용한다.
 
-`SandboxApp::Render`가 [RenderData](../Sandbox/RenderData.h)의 `BuildObjectTransformConstants`로 매 프레임 WVP·World·World 역전치를 계산한다. 결과인 `ObjectTransformConstants`는 오브젝트별 셰이더 변환 상수이며 장면 오브젝트나 GPU 자원을 생성하지 않는다. 유한한 아핀 World·양수 행렬식·유한한 역행렬/WVP를 요구하며 위반은 nullopt다. 반전 Transform의 컬링 보정은 없다. CPU는 행 벡터 행렬을 저장하고 [CubeVS](../Shaders/Samples/Sandbox/CubeVS.hlsl)는 `row_major`·`mul(position, matrix)`로 전치 없이 읽는다. 법선은 역전치의 3×3 부분으로 변환하고 PS에서 정규화한다.
+`SandboxApp::Render`가 [RenderData](../Engine/Rendering/RenderData.h)의 `BuildObjectTransformConstants`로 매 프레임 WVP·World·World 역전치를 계산한다. 결과인 `ObjectTransformConstants`는 오브젝트별 셰이더 변환 상수이며 장면 오브젝트나 GPU 자원을 생성하지 않는다. 유한한 아핀 World·양수 행렬식·유한한 역행렬/WVP를 요구하며 위반은 nullopt다. 반전 Transform의 컬링 보정은 없다. CPU는 행 벡터 행렬을 저장하고 [CubeVS](../Shaders/Samples/Sandbox/CubeVS.hlsl)는 `row_major`·`mul(position, matrix)`로 전치 없이 읽는다. 법선은 역전치의 3×3 부분으로 변환하고 PS에서 정규화한다.
 
 `Render(std::span<const ObjectTransformConstants>, const FrameLighting&)`는 입력을 호출 중 복사하고 참조를 보관하지 않는다. ObjectTransformConstants 192바이트·FrameLighting 64바이트와 필드 offset을 static_assert로 확인한다. CB의 첫 256바이트는 PS b1, 이후 오브젝트마다 256바이트는 VS b0다. 빈 목록도 프레임 값을 기록하고 clear·Present하며 버퍼 크기 오버플로·생성 실패는 보고한다.
 
 ### 텍스처·sRGB
 
-`SandboxApp::Initialize` → EXE 위치 + [SourcePaths.props](../Sandbox/SourcePaths.props)가 빌드 시 전달한 저장소 루트 경로 → 루트 `Assets/`의 PNG → [AssetLoader](../Sandbox/AssetLoader.cpp)의 `LoadPngImage` → CPU [ImageData](../Sandbox/ImageData.h) → `D3D12Renderer::CreateTexture` 순서다. Debug·Release는 같은 원본을 읽으며 파일 복사·원본 쓰기·런타임 상위 폴더 검색은 하지 않는다. 셰이더 CSO는 계속 EXE 옆에서 읽는다. RendererSmoke는 같은 빌드 설정으로 `Tests/Assets/`를 직접 읽고 손상 파일은 테스트 EXE 옆에만 만든다.
+`SandboxApp::Initialize` → EXE 위치 + [SourcePaths.props](../Build/SourcePaths.props)가 빌드 시 전달한 저장소 루트 경로 → 루트 `Assets/`의 PNG → [AssetLoader](../Engine/Assets/AssetLoader.cpp)의 `LoadPngImage` → CPU [ImageData](../Engine/Assets/ImageData.h) → `D3D12Renderer::CreateTexture` 순서다. Debug·Release는 같은 원본을 읽으며 파일 복사·원본 쓰기·런타임 상위 폴더 검색은 하지 않는다. 셰이더 CSO는 계속 EXE 옆에서 읽는다. RendererSmoke는 같은 빌드 설정으로 `Tests/Assets/`를 직접 읽고 손상 파일은 테스트 EXE 옆에만 만든다.
 
 - WIC가 단일 프레임 PNG를 위→아래, 행 패딩 없는 RGBA8로 디코딩한다. 크기·UINT 산술 범위·프레임 수를 검사하며 실패는 빈 이미지·HRESULT·API 이름으로 반환한다. 앱이 전체 경로와 함께 표시한다. STA 초기화 성공 횟수만 정리하며 기존 MTA는 실패한다. ICC 변환·EXIF 회전은 적용하지 않고 BaseColor를 sRGB로 간주한다.
 - 렌더러는 각 축 1~16384와 `pixels.size() == width * height * 4`를 요구한다. 단일 밉 Default Heap 텍스처에 `GetCopyableFootprints`의 RowPitch로 행별 복사하고 COPY_DEST→PIXEL_SHADER_RESOURCE로 전환한다. 첫 사용 전 GPU 완료 후 Upload Heap을 해제한다. 대기 실패 시 업로드 자원을 멤버에 유지해 소멸자의 완료 시도까지 보존한다.
@@ -142,7 +144,7 @@ Resize는 동일 크기·0 크기를 무시하고 전체 GPU 대기 후 백 버�
 - CPU 복사 크기·span 인덱스는 `std::size_t`, D3D12 크기·Fence·출력 인자는 API 타입을 유지한다. 크기 산술 범위를 검사하고 출력 포인터를 다른 정수 타입으로 캐스팅하지 않는다. 고정 배열의 API 전달·Win32/COM 변환은 실제 범위와 객체 계약에 맞춘다.
 - 테스트 어댑터 RendererReadback의 Capture는 실패 후 픽셀 검증을 중단해야 하므로 `[[nodiscard]]`를 사용한다. GetWorld·GetView는 상태·자원을 변경하지 않는 행렬 계산 API로 `[[nodiscard]]`를 사용하지 않는다. [적용 범위와 검증](development.md#nodiscard-적용-범위-2026-10-20)을 따른다.
 - WindowSmoke의 상태 참조·입력 복사본·optional 종료 코드와 LightingChecks의 ambient·픽셀 index는 타입을 명시한다. [테스트 타입 적용](development.md#테스트-상태와-픽셀-인덱스-타입-명시-2026-10-20)에서 범위·검증을 확인한다.
-- PCH 요구 시 자기 헤더보다 `pch.h`를 먼저 포함한다. 플랫폼 include의 Windows→DirectX 순서는 이유를 주석으로 남기며, 기존 긴 오류 문자열은 포맷 규칙의 문자열 예외를 유지한다.
+- Sandbox 전용 구현의 PCH 요구 시 자기 헤더보다 `pch.h`를 먼저 포함한다. Engine 구현은 PCH 없이 자기 헤더를 먼저 포함한다. 플랫폼 include의 Windows→DirectX 순서는 이유를 주석으로 남기며, 기존 긴 오류 문자열은 포맷 규칙의 문자열 예외를 유지한다.
 - 후속 메시·재질·광원에 실제 공유 수요가 생기면 텍스처 업로드·렌더 데이터·재질 상수 분리를 검토한다. 범용 로더·광원 관리자·자체 자료형 별칭·변환 도우미·ECS는 선행 구현하지 않는다. 컨벤션의 확인 범위·적용 상태와 파일 재배치 조건은 [컨벤션 재검토](development.md#컨벤션-재검토와-후속-적용-2026-10-20)에서 관리한다.
 
 ## 현재 제약

@@ -1,7 +1,6 @@
-#include "pch.h"
-#include "AssetLoader.h"
+#include "Assets/AssetLoader.h"
 
-#include "ImageData.h"
+#include "Assets/ImageData.h"
 
 #include <Windows.h>
 #include <objbase.h>
