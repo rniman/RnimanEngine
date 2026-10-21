@@ -1,59 +1,43 @@
 # 외부 라이브러리와 에셋 처리
 
-[프로젝트 소개와 실행](../README.md)
+[프로젝트 소개와 실행](../README.md) · [M02 계획](plans/m02-static-model.md)
 
-## 외부 라이브러리와 도구
+필요한 기능부터 도입하고 입출력·소유권·실패 동작을 확인한다. 새 의존성은 버전·출처·라이선스·사용 범위·준비 방법을 기록한다.
 
-필요한 기능부터 도입하고 입출력, 소유권, 실패 동작을 이해하며 연결한다. 현재 사용 중인 구성과 후속 도입 후보를 구분해 기록한다. 새로 도입할 때 버전·출처·라이선스·사용 범위와 준비 방법을 기록한다.
+## 현재 사용 중인 구성
 
-### 현재 사용하는 이미지 로딩
-
-2026-10-12 Sandbox는 Windows SDK의 WIC·COM을 직접 사용한다. [AssetLoader](../Engine/Assets/AssetLoader.cpp)가 단일 프레임 PNG를 CPU RGBA8로 반환하고 D3D12Renderer가 GPU 업로드를 담당한다. 외부 WICTextureLoader12·DirectXTex 코드는 아직 도입하지 않았다. 링크 의존성은 `windowscodecs.lib`·`ole32.lib`이며 별도 외부 패키지 설치는 없다.
-
-현재 원본은 별도로 준비한 `Assets/BrickWall17_MR_1K/BrickWall17_1K_BaseColor.png`다. 저장소 루트의 `Assets/` 전체를 Git에서 제외하며, Sandbox의 Debug·Release는 같은 원본을 직접 읽는다. PNG를 빌드 출력으로 복사하지 않는다. 원본 준비와 개발 실행 경로의 제약은 [README](../README.md#빌드와-실행)를 따른다. 실제 원본의 배포 출처·라이선스는 확인하지 않았다. 테스트 기준 PNG는 직접 작성해 `Tests/Assets/`에 포함하며 RendererSmoke도 원본을 직접 읽는다. DDS·압축·밉맵·변환 캐시·독립 배포 패키징은 아래 후속 계획이며 현재 실행에는 적용하지 않았다.
-
-### 현재 사용하는 수학 연산
-
-수학 연산 기반으로 [DirectXMath](https://github.com/microsoft/DirectXMath)를 사용한다. 좌표계와 CPU/HLSL 전달 계약은 [좌표축과 행렬](design.md#좌표축과-행렬)을 따른다.
-
-### 다음 도입 계획 · Dear ImGui
-
-[Dear ImGui](https://github.com/ocornut/imgui)는 [M02](plans/m02-static-model.md)의 첫 단계에 도입할 개발용 UI이며 아직 프로젝트에 통합하지 않았다. Win32·DirectX 12 백엔드로 Transform·카메라·조명 편집과 프레임 상태 표시를 연결한다. UI 어댑터와 일반 장면 상태를 구분하고 게임 로직은 ImGui에 의존하지 않도록 한다. 버전·원본 보관 경로·라이선스·빌드 설정은 실제 도입 시 기록한다. 첫 범위는 [ImGui 단계 계획](plans/m02-static-model.md#1단계--imgui-최소-도입)에서 관리한다.
-
-### 우선 도입 후보
-
-| 구성 | 역할과 사용 범위 |
+| 구성 | 사용 범위 |
 |---|---|
-| [d3dx12.h](https://github.com/microsoft/DirectX-Headers) | D3D12 구조체와 반복 작업을 돕는 헬퍼. 초기화·명령 제출·동기화 흐름은 직접 구현한다. |
-| [WICTextureLoader12](https://github.com/microsoft/DirectXTex/tree/main/WICTextureLoader) | 초기 데모에서 일반 이미지를 직접 로딩할 때 활용한다. DDS 변환·캐시 생성 기능과는 구분한다. |
-| [DDSTextureLoader12](https://github.com/microsoft/DirectXTex/tree/main/DDSTextureLoader) | 준비된 DDS와 변환 캐시를 읽는 실행 경로에 활용한다. |
-| [DirectXTex / texconv](https://github.com/microsoft/DirectXTex) | 원본 이미지의 형식 변환·압축·밉맵 생성과 DDS 저장. 변환 API를 연결할지 도구를 호출할지는 구현 시 선택한다. |
+| Windows SDK WIC·COM | [AssetLoader](../Engine/Assets/AssetLoader.cpp)가 PNG를 CPU RGBA8로 디코딩하고 렌더러가 GPU 업로드. windowscodecs.lib·ole32.lib 사용, 별도 패키지 설치 없음 |
+| [DirectXMath](https://github.com/microsoft/DirectXMath) | Transform·카메라·렌더 데이터 계산. [좌표축과 행렬 계약](design.md#좌표축과-행렬) 적용 |
 
-### 필요할 때 검토할 후보
+Sandbox의 BaseColor PNG는 별도 준비하며 실제 원본의 배포 출처·라이선스는 미확인이다. 테스트 PNG는 직접 작성해 Tests/Assets에 포함한다. 준비·로딩 경로는 [README](../README.md#빌드와-실행)를 따른다. DDS·압축·밉맵·변환 캐시·독립 배포는 미구현이다.
 
-| 구성 | 검토 조건 |
+## 도입 계획과 후보
+
+| 구성 | 도입 시점·조건 |
 |---|---|
-| [DXC](https://github.com/microsoft/DirectXShaderCompiler) | 셰이더 빌드 경로와 대상 Shader Model을 정할 때 검토한다. |
-| [MikkTSpace](https://github.com/mmikk/MikkTSpace) | 탄젠트 생성이 필요할 때 검토한다. Unity에서 내보낸 탄젠트를 사용할 수 있으면 재생성하지 않고, 노멀맵과 좌표 변환의 일치 여부를 확인한다. |
-| [spdlog](https://github.com/gabime/spdlog) | 콘솔·파일 로그 관리가 필요할 때 검토한다. |
-| [Tracy](https://github.com/wolfpld/tracy) | 실제 시스템의 실행 시간을 분석할 때 검토한다. |
-| [D3D12 Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator) | 기본 GPU 자원 관리를 이해한 뒤 메모리 할당 관리가 필요할 때 검토한다. 동기화와 자원 사용 수명은 엔진이 관리한다. |
-| [RmlUi](https://github.com/mikke89/RmlUi) | HUD·인벤토리·메뉴 등 플레이어용 UI가 필요할 때 검토한다. ImGui 개발 도구와 병행할 수 있다. |
+| [Dear ImGui](https://github.com/ocornut/imgui) | 다음 구현. Win32·D3D12 백엔드로 개발용 편집·상태 표시를 연결. 상세 범위는 [M02 1단계](plans/m02-static-model.md#1단계--imgui-최소-도입) |
+| [d3dx12.h](https://github.com/microsoft/DirectX-Headers) | D3D12 반복 작업용 헬퍼가 필요할 때. 초기화·제출·동기화는 직접 관리 |
+| [WICTextureLoader12](https://github.com/microsoft/DirectXTex/tree/main/WICTextureLoader) | 일반 이미지 로딩의 대체 후보. 현재 직접 구현한 WIC 로더와 구분 |
+| [DDSTextureLoader12](https://github.com/microsoft/DirectXTex/tree/main/DDSTextureLoader), [DirectXTex / texconv](https://github.com/microsoft/DirectXTex) | DDS 로딩·이미지 변환·압축·밉맵이 필요할 때. 변환 API와 도구 호출 중 구현 방식 선택 |
+| [DXC](https://github.com/microsoft/DirectXShaderCompiler) | Shader Model 6 기능 도입 시 셰이더 빌드와 함께 검토 |
+| [MikkTSpace](https://github.com/mmikk/MikkTSpace) | 탄젠트 생성이 필요할 때. Unity 탄젠트가 있으면 변환·노멀맵과 일치 여부를 먼저 확인 |
+| [spdlog](https://github.com/gabime/spdlog), [Tracy](https://github.com/wolfpld/tracy) | 각각 콘솔/파일 로그 관리, 실행 시간 분석이 필요할 때 |
+| [D3D12 Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator) | GPU 메모리 할당 관리가 필요할 때. 동기화·자원 수명은 엔진 책임 |
+| [RmlUi](https://github.com/mikke89/RmlUi) | 플레이어용 HUD·인벤토리·메뉴가 필요할 때. ImGui 개발 도구와 병행 가능 |
 
-모델·씬·애니메이션 입력은 Unity 익스포터와 직접 작성하는 bin 로더가 담당하며 **Assimp는 도입 대상에서 제외한다.** ImGui 최소 도입 후 M02에서 단일 정적 메시·Transform의 전달부터 구현하고, 그 장면을 일반 오브젝트·ECS 비교에 사용한다. ECS는 직접 구현을 주력으로 하고, [EnTT](https://github.com/skypjack/entt)는 설계 참고나 비교 대상으로 둔다.
+모델·씬·애니메이션은 Unity 익스포터와 자체 bin 로더로 전달하며 **Assimp는 도입하지 않는다.** ECS도 직접 구현을 주력으로 하고 [EnTT](https://github.com/skypjack/entt)는 설계 참고·비교 대상으로 둔다.
 
-### 텍스처 변환과 캐시
+## 텍스처 변환과 캐시
 
-초기 데모는 원본 이미지 직접 로딩으로 시작할 수 있다. 에셋 처리 단계에서는 개발 실행 중 시작·장면 로딩 시 필요한 텍스처를 변환하고, 이후 실행에서는 DDS 캐시를 재사용하는 흐름을 만든다. 플레이 도중의 동기 변환은 피한다.
+후속 계획이다. 시작·장면 로딩 시 필요한 텍스처를 변환하고 이후에는 DDS 캐시를 재사용한다. 플레이 중 동기 변환은 피한다.
 
 ```text
-텍스처 요청 → 캐시 유효성 확인
-               ├─ 유효 → DDS 로드 → GPU 업로드
-               └─ 없음·변경 → 원본 변환·압축·밉맵 생성 → DDS 캐시 저장 → 로드
+텍스처 요청 → 캐시 확인 → 유효하면 DDS 로드 → GPU 업로드
+                       → 없거나 변경됐으면 원본 변환·압축·밉맵 생성 → 저장 → 로드
 ```
 
-- DDS 자체를 캐시 파일로 사용한다. 원본 내용과 해상도·압축 형식·밉맵·색 공간 설정, 변환 도구·처리 규칙 버전을 캐시 키 또는 메타데이터에 반영한다.
-- 불완전하거나 손상된 캐시는 재생성하고, 변환 실패 원인을 표시한다. 변환과 저장이 끝난 결과만 유효한 캐시로 취급한다.
-- 첫 변환 비용과 이후 캐시 로딩 시간을 구분해 측정한다. 디스크 파일 크기와 GPU 메모리 사용량은 별도로 확인한다. DDS 확장자만으로 압축 여부를 판단하지 않는다.
-- 최종 배포에는 미리 변환한 DDS를 준비한다. 개발용 변환 기능과 원본 파일을 배포 실행에 필수로 요구하지 않는다.
-- 캐시는 재생성 가능한 산출물로 관리하고, 경로·보관·정리 정책은 구현 시 정한다. 원본과 변환 설정은 재현 가능하게 보관한다.
+- 원본 내용·해상도·압축 형식·밉맵·색 공간·변환 도구/규칙 버전으로 캐시를 구분한다. 손상된 캐시는 재생성하고 변환 실패 원인을 표시하며 완성된 결과만 공개한다.
+- 최초 변환과 재로딩 시간을 따로 측정하고 디스크 크기·GPU 메모리도 구분한다. DDS 확장자만으로 압축 여부를 판단하지 않는다.
+- 배포에는 미리 변환한 DDS를 준비해 개발용 변환기·원본을 요구하지 않게 한다. 캐시는 재생성 가능한 결과로 관리하고 원본·변환 설정은 보존한다. [배치·Git 관리](project-structure.md#git-관리)
