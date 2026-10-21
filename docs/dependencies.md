@@ -4,13 +4,17 @@
 
 ## 외부 라이브러리와 도구
 
-필요한 기능부터 도입하고 입출력, 소유권, 실패 동작을 이해하며 연결한다. 아래는 도입 계획과 후보이며, 아직 설치하거나 통합한 목록은 아니다. 실제 도입 시 버전·출처·라이선스·사용 범위와 준비 방법을 기록한다.
+필요한 기능부터 도입하고 입출력, 소유권, 실패 동작을 이해하며 연결한다. 현재 사용 중인 구성과 후속 도입 후보를 구분해 기록한다. 새로 도입할 때 버전·출처·라이선스·사용 범위와 준비 방법을 기록한다.
 
 ### 현재 사용하는 이미지 로딩
 
 2026-10-12 Sandbox는 Windows SDK의 WIC·COM을 직접 사용한다. [AssetLoader](../Sandbox/AssetLoader.cpp)가 단일 프레임 PNG를 CPU RGBA8로 반환하고 D3D12Renderer가 GPU 업로드를 담당한다. 외부 WICTextureLoader12·DirectXTex 코드는 아직 도입하지 않았다. 링크 의존성은 `windowscodecs.lib`·`ole32.lib`이며 별도 외부 패키지 설치는 없다.
 
 현재 원본은 별도로 준비한 `Assets/BrickWall17_MR_1K/BrickWall17_1K_BaseColor.png`다. 저장소 루트의 `Assets/` 전체를 Git에서 제외하며, Sandbox의 Debug·Release는 같은 원본을 직접 읽는다. PNG를 빌드 출력으로 복사하지 않는다. 원본 준비와 개발 실행 경로의 제약은 [README](../README.md#빌드와-실행)를 따른다. 실제 원본의 배포 출처·라이선스는 확인하지 않았다. 테스트 기준 PNG는 직접 작성해 `Tests/Assets/`에 포함하며 RendererSmoke도 원본을 직접 읽는다. DDS·압축·밉맵·변환 캐시·독립 배포 패키징은 아래 후속 계획이며 현재 실행에는 적용하지 않았다.
+
+### 현재 사용하는 수학 연산
+
+수학 연산 기반으로 [DirectXMath](https://github.com/microsoft/DirectXMath)를 사용한다. 좌표계와 CPU/HLSL 전달 계약은 [좌표축과 행렬](design.md#좌표축과-행렬)을 따른다.
 
 ### 우선 도입 후보
 
@@ -26,7 +30,6 @@
 
 | 구성 | 검토 조건 |
 |---|---|
-| [DirectXMath](https://github.com/microsoft/DirectXMath) | 수학 연산 기반을 정할 때 검토한다. 필요한 타입과 연산부터 사용한다. |
 | [DXC](https://github.com/microsoft/DirectXShaderCompiler) | 셰이더 빌드 경로와 대상 Shader Model을 정할 때 검토한다. |
 | [MikkTSpace](https://github.com/mmikk/MikkTSpace) | 탄젠트 생성이 필요할 때 검토한다. Unity에서 내보낸 탄젠트를 사용할 수 있으면 재생성하지 않고, 노멀맵과 좌표 변환의 일치 여부를 확인한다. |
 | [spdlog](https://github.com/gabime/spdlog) | 콘솔·파일 로그 관리가 필요할 때 검토한다. |
