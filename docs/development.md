@@ -44,7 +44,7 @@
 - [RendererReadback::Capture](../Tests/RendererReadback.h)는 실패 시 픽셀 검증을 중단해야 하므로 `[[nodiscard]]`를 유지한다. 기존 초기화·GPU 대기·입력 소비 API의 표기도 유지하며 경고 설정·공통 attribute 초안의 상태는 변경하지 않는다.
 - 검증: MSVC v145/14.51.36231·C++20의 x64 Debug·Release 솔루션 빌드 성공. RendererSmoke는 두 구성 모두 CPU 계약·PNG·카메라와 GPU 텍스처/Phong/가림을 통과했고 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0이다.
 - 구성별 최소 번역 단위에서 GetWorld·GetView의 결과를 버리는 호출이 PCH·강제 include 없이 `/Zs /Y- /W4 /WX` 컴파일을 통과했다. Capture 결과를 버리는 코드는 계속 C4834를 진단하고 `/WX`에서 컴파일 실패했다.
-- Sandbox는 두 구성 모두 실제 BaseColor·TEMP 작업 디렉터리·숨김 창으로 각 2초 실행한 뒤 WM_CLOSE 종료 코드 0·창 파괴를 확인했다. 실제 화면·장치 입력·F5 시각 확인은 숨김 실행 범위여서 수행하지 않았다. 두 헤더가 namespace 커밋 당시 내용과 같고 Capture의 표기는 유지됨을 대조했으며 문서 링크·파일 형식·git diff --check도 확인했다.
+- Sandbox는 두 구성 모두 실제 BaseColor·TEMP 작업 디렉터리·숨김 창으로 각 2초 실행한 뒤 WM_CLOSE 종료 코드 0·창 파괴를 확인했다. 두 헤더가 namespace 커밋 당시 내용과 같고 Capture의 표기는 유지됨을 대조했으며 문서 링크·파일 형식·git diff --check도 확인했다.
 
 ### 테스트 상태와 픽셀 인덱스 타입 명시 (2026-10-20)
 
@@ -52,7 +52,7 @@
 - LightingChecks의 ambient는 `const FrameLighting`, 픽셀 index는 `const std::size_t`로 명시했다. row·column은 각각 0~2이므로 기존 UINT 계산식의 index는 12352~24704다. 192×192 readback의 36864픽셀 범위 안에 있고 계산 중 UINT 오버플로도 없다. 계산식은 유지하고 결과를 size_t로 받으며 불필요한 캐스트는 추가하지 않았다.
 - 변경은 지정한 선언과 직접 include에 한정한다. captureCenter 람다의 auto, 반복·기존 요소 참조 등의 기존 사용 기준은 유지한다. 자료형 선택 초안 전체를 공통 채택하지 않으며 새 타입 별칭·변환 도우미는 추가하지 않았다.
 - 검증: MSVC v145/14.51.36231·C++20의 x64 Debug·Release에서 WindowSmoke·RendererSmoke 빌드·실행 성공. WindowSmoke는 입력 소비·캡처/포커스/모달 초기화·리사이즈·종료·수명 검증을 통과했다. RendererSmoke는 CPU 계약·PNG·카메라와 GPU 텍스처/Phong/가림을 통과했으며 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0이다.
-- 선언 13개와 optional 직접 include를 제외한 두 테스트 파일의 내용이 기존 코드와 같음을 대조했다. 문서 링크·파일 형식·git diff --check도 확인했다. Sandbox의 코드·헤더는 이 타입 명시 작업에서 변경하지 않아 빌드·실행 대상에서 제외했으며 실제 화면·장치 입력은 선언 정리 범위여서 확인하지 않았다. 기존 Capture의 nodiscard는 유지했다.
+- 선언 13개와 optional 직접 include를 제외한 두 테스트 파일의 내용이 기존 코드와 같음을 대조했다. 문서 링크·파일 형식·git diff --check도 확인했다. Sandbox의 코드·헤더는 이 타입 명시 작업에서 변경하지 않아 빌드·실행 대상에서 제외했다. 기존 Capture의 nodiscard는 유지했다.
 
 ### Readback 결과 확인 진단 적용 (2026-10-20)
 
@@ -60,7 +60,7 @@
 - RendererSmoke·LightingChecks의 Capture 호출 12개는 모두 실패 시 검증을 중단한다. 호출부·실행 로직·출력 버퍼의 부분 변경 가능성·GPU 자원 수명은 유지했다. 결과를 변수에 저장하는 것만으로 성공 여부 검사가 보장되지는 않으며, 기존 실패 처리가 계속 필요하다.
 - 검증: MSVC v145/14.51.36231·C++20에서 Debug·Release RendererSmoke 빌드·실행 성공. 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0을 확인했다. PNG·Transform·카메라·조명과 GPU 텍스처/Phong/가림 검증도 통과했다.
 - 구성별 최소 번역 단위에서 Capture 결과를 버리는 코드는 C4834를 진단했고 `/WX`에서 컴파일 실패했다. 결과를 상위 호출자에게 반환하는 코드는 PCH·강제 include 없이 `/Zs /Y- /W4 /WX` 컴파일을 통과했다. 진단 검증용 파일은 obj 아래에만 생성했으며 프로젝트의 경고 설정은 변경하지 않았다.
-- Sandbox·WindowSmoke는 이 테스트 어댑터를 사용하지 않아 Capture 적용 작업의 빌드·실행 대상에서 제외했다. 화면·장치 입력 확인은 선언의 진단 보강 범위여서 수행하지 않았다. 문서 링크·파일 형식·git diff --check를 확인했다.
+- Sandbox·WindowSmoke는 이 테스트 어댑터를 사용하지 않아 Capture 적용 작업의 빌드·실행 대상에서 제외했다. 문서 링크·파일 형식·git diff --check를 확인했다.
 
 ### 단일 루트 네임스페이스 적용 (2026-10-20)
 
@@ -72,7 +72,7 @@
 - 기존 전역 타입·함수 이름은 `rengine::` 한정이 필요하므로 외부 C++ 소비자가 있다면 소스 수정·재빌드가 필요하다. 직렬화 형식·CPU/HLSL 레이아웃·호출 순서·수명·실패 계약 변경은 없다.
 - 검증: Visual Studio Community 2026 18.11.0·MSVC v145/14.51.36231·SDK 10.0.26100.0의 x64 Developer PowerShell에서 Debug·Release 솔루션 빌드 성공. 변경한 헤더 11개를 구성별 최소 번역 단위로 PCH·강제 include 없이 `/Zs /Y- /W4 /WX` 단독 컴파일해 모두 통과했다. 기존 MSPDB 제약을 고려해 빌드는 PreferredToolArchitecture=x64·nodeReuse:false로 실행했으며 이번 실행은 샌드박스 안에서 성공했다.
 - RendererSmoke는 두 구성 모두 CPU 조명/행렬·PNG·카메라와 GPU 텍스처/Phong/가림 검증을 통과했다. 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0을 확인했고 WindowSmoke도 두 구성 종료 코드 0이다.
-- 실제 BaseColor를 사용하는 Sandbox는 두 구성 모두 TEMP 작업 디렉터리에서 숨김 창으로 각 2초 실행한 뒤 WM_CLOSE로 종료 코드 0·창 파괴를 확인했다. 실제 화면·장치 입력·F5 시각 확인은 숨김 실행 범위여서 수행하지 않았다. C++ 19개 파일의 변경을 네임스페이스·이름 한정·공백 변경을 제외한 토큰과 대조해 기존 로직이 유지됨을 확인했다.
+- 실제 BaseColor를 사용하는 Sandbox는 두 구성 모두 TEMP 작업 디렉터리에서 숨김 창으로 각 2초 실행한 뒤 WM_CLOSE로 종료 코드 0·창 파괴를 확인했다. C++ 19개 파일의 변경을 네임스페이스·이름 한정·공백 변경을 제외한 토큰과 대조해 기존 로직이 유지됨을 확인했다.
 - 최종 점검: 수정한 문서 4개의 로컬 링크 91개·절 앵커 29개, 변경 파일 23개의 UTF-8/BOM 없음·LF·끝 개행과 git diff --check를 통과했다. 이름 있는 C++ 네임스페이스는 rengine 하나이며 using namespace 없이 호출하고 손상 PNG 테스트 파일도 정리됐음을 확인했다.
 
 ### 컨벤션 재검토와 후속 적용 (2026-10-20)
@@ -122,7 +122,7 @@
 - `RenderObject` → `ObjectTransformConstants`, `CreateRenderObject` → `BuildObjectTransformConstants`로 앱·렌더러·검증 코드·설계 문서를 함께 변경했다. 장면 오브젝트 생성과 변환 상수 계산의 구분이 목적이며 행렬 계산·실패 계약·192바이트 레이아웃·GPU 전달 방식은 유지한다.
 - EXE 폴더를 Assets 폴더로 오해하지 않도록 `AssetDirectoryResult` → `ExecutableDirectoryResult`, 호출부의 변수 → `executableDirectoryResult`로 맞췄다. 공통 계산은 기존 RenderData와 EXE 경로 함수에서 계속 공유하며 새 범용 추상화는 추가하지 않았다.
 - 검증: x64 Debug·Release 솔루션 빌드 성공. RendererSmoke는 두 구성 모두 CPU 행렬/실패 계약·PNG·카메라·조명과 GPU 텍스처/Phong/가림을 통과했고 각 136프레임·8회 리사이즈·D3D12 오류/경고 0·잘못된 가림 픽셀 0을 확인했다. WindowSmoke도 두 구성 종료 코드 0이다.
-- Sandbox는 두 구성을 숨김 창으로 실행했다. 작업 디렉터리를 TEMP로 바꿔 실제 BaseColor·CSO의 EXE 기준 로딩을 확인하고 각 2초 실행 후 WM_CLOSE로 종료 코드 0을 얻었다. 실제 화면·장치 입력·F5 시각 확인은 수행하지 않았다. 변경한 문서의 로컬 링크 파일 대상 67개와 새 제안 절 앵커·diff/파일 형식을 확인했다.
+- Sandbox는 두 구성을 숨김 창으로 실행했다. 작업 디렉터리를 TEMP로 바꿔 실제 BaseColor·CSO의 EXE 기준 로딩을 확인하고 각 2초 실행 후 WM_CLOSE로 종료 코드 0을 얻었다. 변경한 문서의 로컬 링크 파일 대상 67개와 새 제안 절 앵커·diff/파일 형식을 확인했다.
 - 최초 샌드박스 기본 도구 실행은 두 구성 모두 LNK1101(MSPDB140.DLL 버전 오류)로 링크 실패했다. VsDevCmd의 x64 환경·PreferredToolArchitecture=x64·node reuse 비활성화로 다시 실행했으며 Debug는 샌드박스 안, Release는 샌드박스 밖에서 빌드 성공했다. 환경과 실행 조건이 달라 오류 해소 원인을 특정하지 않는다. 에셋 경로 공유는 제안만 기록했으며 빌드 복사·런타임 로딩 동작은 변경하지 않았다.
 
 ### 공용 원본 경로 적용 (2026-10-16)
@@ -136,7 +136,7 @@
 - 원본과 해시가 같은 기존 Sandbox·RendererSmoke의 Debug/Release PNG 복사본 4개만 삭제하고 다시 빌드해 재생성되지 않음을 확인했다. 두 구성 Sandbox를 TEMP 작업 디렉터리·숨김 창으로 각 2초 실행하고 WM_CLOSE 정상 종료 코드 0을 확인했다. 원본 PNG 2개의 해시가 그대로이며 손상 PNG 테스트 파일도 정리됐다.
 - 격리한 Release 실행에서 공용 원본을 제외하고 EXE 옆에는 정상 PNG를 두었다. 원본 경로·WIC API·HRESULT 진단과 종료 코드 1을 확인하여 과거 복사본으로 대체하지 않음을 검증했다. 원본이 없는 EngineRoot로 빌드 검증 타깃도 실행해 준비 안내와 실패를 확인했다. 실제 원본 에셋은 이동·수정하지 않았다. 기본 출력의 원본 상대 경로는 `../../../`, 깊이를 바꾼 OutDir의 초기 MSBuild 속성 평가는 `../../`였다.
 - 커밋 전 최종 점검에서 공백·한글이 있는 별도 EngineRoot와 깊이가 다른 OutDir·IntDir로 Release RendererSmoke를 실제 빌드하고 TEMP 작업 디렉터리에서 실행했다. PNG 원본 직접 읽기·손상 파일 정리와 136프레임·8회 리사이즈·D3D12 오류/경고 0을 확인했다. 기본 출력의 PNG 복사본 부재·원본 해시 불변, 문서 로컬 링크 76개·앵커 18개도 재확인했다. 공개 baseline은 여전히 접근 불가였으며 로컬 최신 C++ 규칙과 Git 커밋 메시지 규칙을 참고했다. 이번 추가 점검에서는 코드 변경 없이 기존 검증 결과와 전체 diff를 대조했다.
-- 실제 화면·장치 입력·F5 시각 확인은 수행하지 않았다. 문서 로컬 링크·이전 제안 앵커·UTF-8/LF·diff를 점검했다. 원본 경로와 PNG 복사 타깃만 바꿨으며 WIC 디코딩·GPU 업로드·행렬/조명 계약은 유지한다.
+- 문서 로컬 링크·이전 제안 앵커·UTF-8/LF·diff를 점검했다. 원본 경로와 PNG 복사 타깃만 바꿨으며 WIC 디코딩·GPU 업로드·행렬/조명 계약은 유지한다.
 
 ## 프로젝트 설정
 
