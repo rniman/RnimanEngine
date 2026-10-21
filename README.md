@@ -58,6 +58,8 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 
 ## 코드와 문서 안내
 
+Visual Studio 솔루션 탐색기의 `Docs` 폴더에서 README·AGENTS와 `docs/`의 문서를 열 수 있다. 마일스톤 기록과 개발 계획은 각각 `milestones`·`plans` 하위 솔루션 폴더에 표시한다. 실제 파일 경로는 유지하며, 새 문서는 솔루션 항목에 별도로 등록한다.
+
 대표 실행 프로젝트는 [Sandbox](Sandbox/Sandbox.vcxproj) 하나다. 진입점 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain`은 [rengine::SandboxApp](Sandbox/SandboxApp.cpp)을 생성하고 `Run`을 호출한다. 앱은 [Win32Window](Engine/Platform/Win32Window.cpp)의 창 생성 → [AssetLoader](Engine/Assets/AssetLoader.cpp)의 PNG 디코딩 → [D3D12Renderer](Engine/Rendering/D3D12Renderer.cpp) 초기화·텍스처 업로드 → 메시지 처리 → 리사이즈 → 입력·Transform 갱신 → 렌더링 → GPU 완료 확인 → RAII 정리 순서로 실행한다. 공통 소스의 소속·의존성과 두 Smoke 프로젝트의 역할은 [현재 프로젝트와 코드](docs/project-structure.md#현재-프로젝트와-코드)에서 확인한다. 엔진 라이브러리와 추가 샘플은 필요할 때 분리한다.
 
 직접 작성한 C++ 타입·함수는 Sandbox 전용 코드와 테스트를 포함해 `rengine` 단일 루트 네임스페이스를 사용한다. `main`·`wWinMain`은 전역 진입점이며 외부 API와 HLSL 이름은 원래 표기를 유지한다. 적용 범위와 호출 예시는 [네임스페이스 규약](docs/design.md#네임스페이스)을 따른다.
