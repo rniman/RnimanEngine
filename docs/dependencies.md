@@ -16,6 +16,10 @@
 
 수학 연산 기반으로 [DirectXMath](https://github.com/microsoft/DirectXMath)를 사용한다. 좌표계와 CPU/HLSL 전달 계약은 [좌표축과 행렬](design.md#좌표축과-행렬)을 따른다.
 
+### 다음 도입 계획 · Dear ImGui
+
+[Dear ImGui](https://github.com/ocornut/imgui)는 [M02](plans/m02-static-model.md)의 첫 단계에 도입할 개발용 UI이며 아직 프로젝트에 통합하지 않았다. Win32·DirectX 12 백엔드로 Transform·카메라·조명 편집과 프레임 상태 표시를 연결한다. UI 어댑터와 일반 장면 상태를 구분하고 게임 로직은 ImGui에 의존하지 않도록 한다. 버전·원본 보관 경로·라이선스·빌드 설정은 실제 도입 시 기록한다. 첫 범위는 [ImGui 단계 계획](plans/m02-static-model.md#1단계--imgui-최소-도입)에서 관리한다.
+
 ### 우선 도입 후보
 
 | 구성 | 역할과 사용 범위 |
@@ -24,7 +28,6 @@
 | [WICTextureLoader12](https://github.com/microsoft/DirectXTex/tree/main/WICTextureLoader) | 초기 데모에서 일반 이미지를 직접 로딩할 때 활용한다. DDS 변환·캐시 생성 기능과는 구분한다. |
 | [DDSTextureLoader12](https://github.com/microsoft/DirectXTex/tree/main/DDSTextureLoader) | 준비된 DDS와 변환 캐시를 읽는 실행 경로에 활용한다. |
 | [DirectXTex / texconv](https://github.com/microsoft/DirectXTex) | 원본 이미지의 형식 변환·압축·밉맵 생성과 DDS 저장. 변환 API를 연결할지 도구를 호출할지는 구현 시 선택한다. |
-| [Dear ImGui](https://github.com/ocornut/imgui) | 개발용 상태 표시·값 편집 UI. Inspector 동작과 성능 계측은 엔진에서 구현하며, 게임 로직은 ImGui에 의존하지 않는다. |
 
 ### 필요할 때 검토할 후보
 
@@ -37,7 +40,7 @@
 | [D3D12 Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator) | 기본 GPU 자원 관리를 이해한 뒤 메모리 할당 관리가 필요할 때 검토한다. 동기화와 자원 사용 수명은 엔진이 관리한다. |
 | [RmlUi](https://github.com/mikke89/RmlUi) | HUD·인벤토리·메뉴 등 플레이어용 UI가 필요할 때 검토한다. ImGui 개발 도구와 병행할 수 있다. |
 
-모델·씬·애니메이션 입력은 Unity 익스포터와 직접 작성하는 bin 로더가 담당하며 **Assimp는 도입 대상에서 제외한다.** ECS는 직접 구현을 주력으로 하고, [EnTT](https://github.com/skypjack/entt)는 설계 참고나 비교 대상으로 둔다.
+모델·씬·애니메이션 입력은 Unity 익스포터와 직접 작성하는 bin 로더가 담당하며 **Assimp는 도입 대상에서 제외한다.** ImGui 최소 도입 후 M02에서 단일 정적 메시·Transform의 전달부터 구현하고, 그 장면을 일반 오브젝트·ECS 비교에 사용한다. ECS는 직접 구현을 주력으로 하고, [EnTT](https://github.com/skypjack/entt)는 설계 참고나 비교 대상으로 둔다.
 
 ### 텍스처 변환과 캐시
 

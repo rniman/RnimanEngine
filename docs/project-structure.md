@@ -103,6 +103,8 @@ RnimanEngine/
 - `Sandbox`는 개발 단계의 기능을 연결해 보는 대표 통합 데모다. `Samples` 아래의 각 프로젝트는 조명·리소스 로딩 등 특정 기능을 사용하는 장면·입력·에셋을 구성한다.
 - 각 샘플은 엔진을 사용하는 실행 맥락(Context)에 해당한다. `Samples` 자체는 실행 프로젝트를 모으는 폴더이며 별도 Context 객체나 시스템을 뜻하지 않는다. 샘플끼리 엔진 구현을 복사하지 않는다.
 
+[M02 계획](plans/m02-static-model.md)은 기존 Sandbox에 ImGui 최소 도입과 정적 모델 표시를 단계적으로 통합한다. UI 패널과 데모 상태는 Sandbox, 공통 CPU 모델 데이터·로더와 GPU 업로드는 Engine, Unity 익스포터는 Tools의 역할로 정리한다. 이 배치는 계획이며 아직 해당 폴더·의존성·프로젝트를 추가하지 않았다. 일반 오브젝트와 ECS 비교는 이 모델 장면을 확보한 뒤 진행한다.
+
 ### 공유 자원과 실행 배치
 
 **개발 실행은 원본을 공유하고 실행 파일·CSO는 앱과 구성별로 분리한다.** 현재 Sandbox는 루트 `Assets/`를, RendererSmoke는 `Tests/Assets/`를 직접 읽는다. 위 목표 구조의 `Assets/Shared`·`Assets/Samples`와 공용 셰이더 경로는 실제 공유 수요가 생길 때 도입한다. PNG의 Debug·Release별 복사본은 만들지 않는다.

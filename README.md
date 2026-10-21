@@ -8,7 +8,7 @@ D3D12 기반의 미니 게임 엔진. 장면 구성, 입력, 게임 로직, 렌�
 
 공통 소스는 `Engine/`, 데모의 실행·조작 코드는 `Sandbox/`에 배치한다. 현재 세 실행 프로젝트가 필요한 Engine 원본을 직접 컴파일하며 별도 엔진 라이브러리는 아직 없다.
 
-다음 단계는 일반 오브젝트 방식과 ECS 비교다. ECS·Unity 익스포터/로더·PBR은 아직 구현하지 않았다. [로드맵](docs/roadmap.md) · [Architecture와 좌표계 규약](docs/design.md) · [첫 마일스톤 기록](docs/milestones/v0.1.0-sandbox.md)을 참고한다.
+다음 개발 순서는 **ImGui 최소 도입 → 3D 모델 로딩·렌더링 → 일반 오브젝트 방식과 ECS 비교**다. [다음 마일스톤 M02](docs/plans/m02-static-model.md)는 기존 큐브에 최소 편집 패널을 연결한 뒤 Unity 정적 메시·Transform의 bin 익스포트/로딩과 Phong 렌더링을 완성하는 범위다. ImGui·Unity 익스포터/로더·ECS·PBR은 아직 구현하지 않았다. [로드맵](docs/roadmap.md) · [Architecture와 좌표계 규약](docs/design.md) · [첫 마일스톤 기록](docs/milestones/v0.1.0-sandbox.md)을 참고한다.
 
 ## 카메라 조작
 
@@ -64,7 +64,7 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 
 | 문서 | 내용 |
 |---|---|
-| [개발 목표와 순서](docs/roadmap.md) | 기능 범위, 단계별 완료 기준과 첫 마일스톤 |
+| [개발 목표와 순서](docs/roadmap.md) | 기능 범위, 개발 순서와 다음 마일스톤 완료 기준 |
 | [엔진 설계](docs/design.md) | 현재 좌표계·실행·렌더링 계약과 장면·ECS·Unity 설계 방향 |
 | [프로젝트와 공유 자원 구조](docs/project-structure.md) | 현재 코드·검증 프로젝트의 역할, 향후 확장 구조와 공유 자원·출력 배치 |
 | [외부 라이브러리와 에셋 처리](docs/dependencies.md) | 도입 후보·제외 대상, 텍스처 변환과 DDS 캐시 |
