@@ -1,0 +1,56 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(EngineRoot)ThirdParty/imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <!-- VC 프로젝트의 IDE 표시를 위해 파일마다 개별 항목으로 등록한다. -->
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_draw.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_tables.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_widgets.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_demo.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_win32.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_dx12.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imconfig.h" />
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imgui.h" />
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imgui_internal.h" />
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imstb_rectpack.h" />
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imstb_textedit.h" />
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imstb_truetype.h" />
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_win32.h" />
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_dx12.h" />
+    <None Include="$(EngineRoot)ThirdParty/imgui/LICENSE.txt" />
+    <None Include="$(EngineRoot)ThirdParty/imgui/README.rniman.md" />
+    <None Include="$(EngineRoot)ThirdParty/imgui/SHA256SUMS.txt" />
+  </ItemGroup>
+</Project>
