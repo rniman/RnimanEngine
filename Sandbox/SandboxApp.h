@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SandboxCamera.h"
+#include "SandboxGui.h"
 #include "SandboxLighting.h"
 
 #include "Math/Transform.h"
@@ -31,13 +32,23 @@ namespace rengine
 	private:
 		[[nodiscard]] bool Initialize(int showCommand);
 		void Update(const Win32Window::InputState& input, float deltaSeconds, double elapsedSeconds);
+		void DrawTools();
+		void DrawObjectTools();
+		void DrawLightingTools();
 		[[nodiscard]] bool Render();
 
-		// 선언 역순으로 파괴되므로 렌더러의 GPU 자원을 HWND보다 먼저 정리한다.
+		// 선언 역순으로 UI → 렌더러 → 창을 정리한다. UI 콜백·GPU 자원은 앞선 소유자에 의존한다.
 		Win32Window mWindow;
 		D3D12Renderer mRenderer;
+		SandboxGui mGui;
+
 		SandboxCamera mCamera;
 		SandboxLighting mLighting;
+		std::array<bool, 3> mAutoRotate = { true, true, true };
+		double mPreviousAnimationTime = 0.0;
+		int mSelectedObject = 0;
+		bool mShowDemo = false;
+		bool mInvalidEdit = false;
 		std::array<Transform, 3> mObjects = {
 			Transform{ { -2.5f, 0.0f, 1.0f }, {}, { 0.65f, 0.65f, 0.65f } },
 			Transform{ { 0.0f, 1.0f, 4.0f }, {}, { 0.8f, 1.1f, 0.6f } },

@@ -122,6 +122,30 @@ namespace rengine
 		mState.resizePending = false;
 	}
 
+	void Win32Window::SetMessageHandler(MessageHandler handler, void* userData)
+	{
+		mMessageHandler = handler;
+		mMessageUserData = userData;
+	}
+
+	void Win32Window::SetInputCapture(bool mouse, bool keyboard)
+	{
+		mMouseCaptured = mouse;
+		mKeyboardCaptured = keyboard;
+		if (keyboard)
+		{
+			mInput.keys.fill(false);
+		}
+
+		if (mouse)
+		{
+			mRotating = false;
+			mOwnsMouseCapture = false;
+			mInput.mouseDeltaX = 0.0f;
+			mInput.mouseDeltaY = 0.0f;
+		}
+	}
+
 	std::optional<int> Win32Window::PumpMessages()
 	{
 		MSG message{};
@@ -154,6 +178,7 @@ namespace rengine
 	{
 		mInput.keys.fill(false);
 		mRotating = false;
+		mOwnsMouseCapture = false;
 		mInput.mouseDeltaX = 0.0f;
 		mInput.mouseDeltaY = 0.0f;
 		mInput.resetFrameTime = true;
@@ -192,6 +217,9 @@ namespace rengine
 
 	LRESULT Win32Window::HandleMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
 	{
+		// 캡처 상태와 관계없이 UI에 입력을 전달한다. 창 수명·포커스 처리는 생략하지 않는다.
+		const LRESULT uiResult = mMessageHandler == nullptr ? 0 :
+			mMessageHandler(mMessageUserData, window, message, wParam, lParam);
 		switch (message)
 		{
 		case WM_SETFOCUS:
@@ -218,7 +246,7 @@ namespace rengine
 		case WM_SYSKEYUP:
 			if (mState.focused && wParam < mInput.keys.size())
 			{
-				mInput.keys[wParam] = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
+				mInput.keys[wParam] = !mKeyboardCaptured && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN);
 			}
 
 			if (message == WM_SYSKEYDOWN || message == WM_SYSKEYUP)
@@ -229,9 +257,15 @@ namespace rengine
 			return 0;
 
 		case WM_RBUTTONDOWN:
-			if (mState.focused)
+			if (mState.focused && !mMouseCaptured)
 			{
-				SetCapture(window);
+				// 같은 HWND라도 UI 백엔드가 먼저 획득한 캡처는 빌려 쓰고 해제하지 않는다.
+				if (GetCapture() != window)
+				{
+					SetCapture(window);
+					mOwnsMouseCapture = GetCapture() == window;
+				}
+
 				mRotating = GetCapture() == window;
 				if (!mRotating)
 				{
@@ -244,16 +278,21 @@ namespace rengine
 			return 0;
 
 		case WM_RBUTTONUP:
+		{
+			const bool releaseCapture = mOwnsMouseCapture;
 			mRotating = false;
-			if (GetCapture() == window && !ReleaseCapture())
+			mOwnsMouseCapture = false;
+			if (releaseCapture && GetCapture() == window && !ReleaseCapture())
 			{
 				ReportWin32Error(L"ReleaseCapture", GetLastError());
 			}
 
 			return 0;
+		}
 
 		case WM_CAPTURECHANGED:
 			mRotating = false;
+			mOwnsMouseCapture = false;
 			mInput.mouseDeltaX = 0.0f;
 			mInput.mouseDeltaY = 0.0f;
 			return 0;
@@ -292,7 +331,7 @@ namespace rengine
 			return 0;
 
 		default:
-			return DefWindowProcW(window, message, wParam, lParam);
+			return uiResult != 0 ? uiResult : DefWindowProcW(window, message, wParam, lParam);
 		}
 	}
 }

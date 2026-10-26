@@ -102,6 +102,10 @@
   <ItemGroup>
     <ClInclude Include="../Engine/Rendering/D3D12Renderer.h" />
     <ClInclude Include="SandboxApp.h" />
+    <ClInclude Include="SandboxGui.h" />
+    <ClCompile Include="SandboxGui.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClInclude Include="SandboxCamera.h" />
     <ClInclude Include="../Engine/Math/Transform.h" />
     <ClInclude Include="../Engine/Platform/Win32Window.h" />
@@ -125,8 +129,12 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../Build/ImGui.props" />
+  </ItemGroup>
   <Import Project="../Build/SourcePaths.props" />
   <Import Project="CubeShaders.props" />
+  <Import Project="../Build/ImGui.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="ValidateSandboxTexture" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)'!='true'">
     <Error Condition="!Exists('$(EngineRoot)Assets\BrickWall17_MR_1K\BrickWall17_1K_BaseColor.png')"

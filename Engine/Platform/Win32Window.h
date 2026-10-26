@@ -12,6 +12,8 @@ namespace rengine
 	class Win32Window
 	{
 	public:
+		using MessageHandler = LRESULT (*)(void* userData, HWND window, UINT message, WPARAM wParam, LPARAM lParam);
+
 		struct State
 		{
 			UINT width = 1280;
@@ -50,6 +52,17 @@ namespace rengine
 		/// @brief 입력을 복사하고 마우스 이동량·시간 초기화 요청만 비운다. 키 눌림은 유지한다.
 		[[nodiscard]] InputState ConsumeInput();
 
+		/// @brief UI 스레드에서 플랫폼 메시지를 관찰한다. userData는 해제/교체 전까지 유효해야 한다.
+		/// @note 창 수명 메시지는 항상 창이 처리한다. nullptr로 연결을 해제한다.
+		/// @note handler의 0 이외 반환은 창의 기본 메시지 처리에 사용한다. 창 수명 처리를 생략하지 않는다.
+		/// @note handler가 같은 HWND의 캡처를 먼저 획득하면 창은 빌려 쓴다.
+		/// 일반 버튼 해제는 획득 주체가, 포커스 해제·취소는 창이 정리한다.
+		void SetMessageHandler(MessageHandler handler, void* userData);
+
+		/// @brief UI NewFrame 후 앱 입력을 차단한다. 캡처 시작 시 키·드래그 누적을 버린다.
+		/// @note 마우스 캡처는 UI에 넘기므로 앱 소유 표시만 비우고 ReleaseCapture를 호출하지 않는다.
+		void SetInputCapture(bool mouse, bool keyboard);
+
 		/// @brief 앱이 프레임 경계의 GPU 리사이즈에 성공한 뒤 호출한다.
 		void ClearResizeRequest();
 
@@ -70,6 +83,11 @@ namespace rengine
 		State mState;
 		InputState mInput;
 		bool mRotating = false;
+		bool mOwnsMouseCapture = false;
 		POINT mMousePosition{};
+		MessageHandler mMessageHandler = nullptr;
+		void* mMessageUserData = nullptr;
+		bool mMouseCaptured = false;
+		bool mKeyboardCaptured = false;
 	};
 }

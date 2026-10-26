@@ -20,6 +20,28 @@ namespace rengine
 	class D3D12Renderer
 	{
 	public:
+		/// @brief 개발 UI 어댑터만 사용하는 비소유 GPU 문맥. 장면 데이터에는 전달하지 않는다.
+		/// @note GetOverlayContext는 Initialize 성공 후 사용한다. 포인터의 소유자는 렌더러다.
+		struct OverlayContext
+		{
+			ID3D12Device* device;
+			ID3D12CommandQueue* commandQueue;
+			DXGI_FORMAT renderTargetFormat;
+			UINT framesInFlight;
+		};
+
+		/// @brief 현재 Render 호출 중에만 대여하는 마지막 그리기 패스.
+		struct OverlayPass
+		{
+			/// @brief record에 전달할 비소유 문맥. Render가 끝날 때까지 유효해야 한다.
+			/// @note nullptr 허용 여부는 record가 정한다.
+			void* userData;
+			/// @brief null이 아닌 기록 함수. 호출 중에만 Command List를 사용하고 보관하지 않는다.
+			/// @note 기존 RTV·DSV에 기록하며 자체 자원의 Fence·해제 조건은 어댑터가 관리한다.
+			/// @return 실패 원인을 보고하고 false를 반환하면 제출을 중단한다. 실패 후 재사용하지 않는다.
+			bool (*record)(void* userData, ID3D12GraphicsCommandList* commands);
+		};
+
 		D3D12Renderer() = default;
 		~D3D12Renderer();
 
@@ -36,10 +58,15 @@ namespace rengine
 		/// @param objectConstants BuildObjectTransformConstants로 계산한 큐브별 변환 상수. 호출 중 복사하며 참조를 저장하지 않는다.
 		/// @param lighting 유한한 프레임 값. direction은 단위 벡터, intensity는 0~2다.
 		/// @note color·ambientStrength·specularStrength는 0~1, shininess는 1~256이다.
-		/// @note 빈 목록은 화면만 지운다. 모든 큐브는 같은 메시와 파이프라인을 공유한다.
+		/// @note 빈 목록은 큐브를 생략하고 clear·선택 overlay·Present한다. 큐브는 메시·파이프라인을 공유한다.
+		/// @param overlay nullptr이면 UI 없이 그린다. 슬롯 Fence 대기 후 마지막 패스로 호출하며 보관하지 않는다.
 		[[nodiscard]] bool Render(
 			std::span<const ObjectTransformConstants> objectConstants,
-			const FrameLighting& lighting);
+			const FrameLighting& lighting,
+			const OverlayPass* overlay = nullptr);
+
+		/// @brief Initialize 성공 후 UI 어댑터에만 대여한다. GPU 문맥은 렌더러보다 먼저 사용을 끝낸다.
+		OverlayContext GetOverlayContext() const;
 
 		/// @brief 프레임 경계에서 호출한다. 0 크기는 무시하며 실패 후 렌더링을 중단해야 한다.
 		[[nodiscard]] bool Resize(UINT width, UINT height);
@@ -53,7 +80,8 @@ namespace rengine
 		[[nodiscard]] bool RenderInternal(
 			std::span<const ObjectTransformConstants> objectConstants,
 			const FrameLighting& lighting,
-			bool present);
+			bool present,
+			const OverlayPass* overlay = nullptr);
 
 		struct FrameResources
 		{

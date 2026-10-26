@@ -44,6 +44,18 @@ namespace rengine
 			return mPosition;
 		}
 
+		/// @brief 유한한 월드 위치를 설정한다. 잘못된 값은 기존 위치를 유지하고 false를 반환한다.
+		[[nodiscard]] bool SetPosition(const DirectX::XMFLOAT3& position)
+		{
+			if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z))
+			{
+				return false;
+			}
+
+			mPosition = position;
+			return true;
+		}
+
 		DirectX::XMMATRIX GetView() const
 		{
 			return DirectX::XMMatrixLookToLH(

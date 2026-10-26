@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="ThirdParty" />
+    <Filter Include="ThirdParty\imgui" />
+    <Filter Include="ThirdParty\imgui\backends" />
+    <Filter Include="Build" />
     <Filter Include="Engine">
       <UniqueIdentifier>{98bd1b77-ad0c-4719-a59d-6126a76cebaa}</UniqueIdentifier>
     </Filter>
@@ -16,6 +20,7 @@
     <Filter Include="Engine\Math">
       <UniqueIdentifier>{78160f4c-f3e6-4efb-a51c-2fa1644b9d57}</UniqueIdentifier>
     </Filter>
+    <None Include="$(EngineRoot)ThirdParty/imgui/SHA256SUMS.txt"><Filter>ThirdParty\imgui</Filter></None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="../Engine/Rendering/D3D12Renderer.h">
@@ -36,6 +41,26 @@
     <ClInclude Include="../Engine/Rendering/RenderData.h">
       <Filter>Engine\Rendering</Filter>
     </ClInclude>
+    <ClInclude Include="SandboxGui.h" />
+    <ClCompile Include="SandboxGui.cpp" />
+    <None Include="../Build/ImGui.props"><Filter>Build</Filter></None>
+    <None Include="$(EngineRoot)ThirdParty/imgui/README.rniman.md"><Filter>ThirdParty\imgui</Filter></None>
+    <None Include="$(EngineRoot)ThirdParty/imgui/LICENSE.txt"><Filter>ThirdParty\imgui</Filter></None>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imconfig.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imgui.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_demo.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_draw.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imgui_internal.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_tables.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_widgets.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imstb_rectpack.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imstb_textedit.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imstb_truetype.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_dx12.cpp"><Filter>ThirdParty\imgui\backends</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_dx12.h"><Filter>ThirdParty\imgui\backends</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_win32.cpp"><Filter>ThirdParty\imgui\backends</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_win32.h"><Filter>ThirdParty\imgui\backends</Filter></ClInclude>
     <ClInclude Include="SandboxLighting.h" />
     <ClInclude Include="pch.h" />
     <ClCompile Include="Main.cpp" />

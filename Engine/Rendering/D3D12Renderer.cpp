@@ -760,16 +760,30 @@ namespace rengine
 		return true;
 	}
 
-	bool D3D12Renderer::Render(std::span<const ObjectTransformConstants> objectConstants, const FrameLighting& lighting)
+	D3D12Renderer::OverlayContext D3D12Renderer::GetOverlayContext() const
 	{
-		return RenderInternal(objectConstants, lighting, true);
+		return { mDevice.Get(), mCommandQueue.Get(), COLOR_VIEW_FORMAT, BUFFER_COUNT };
+	}
+
+	bool D3D12Renderer::Render(
+		std::span<const ObjectTransformConstants> objectConstants,
+		const FrameLighting& lighting,
+		const OverlayPass* overlay)
+	{
+		return RenderInternal(objectConstants, lighting, true, overlay);
 	}
 
 	bool D3D12Renderer::RenderInternal(
 		std::span<const ObjectTransformConstants> objectConstants,
 		const FrameLighting& lighting,
-		bool present)
+		bool present,
+		const OverlayPass* overlay)
 	{
+		if (overlay != nullptr && overlay->record == nullptr)
+		{
+			return CheckResult(E_INVALIDARG, L"Render: missing overlay recorder");
+		}
+
 		constexpr std::size_t constantStride = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 		static_assert(sizeof(ObjectTransformConstants) <= constantStride && sizeof(FrameLighting) <= constantStride);
 		if (!IsValidLighting(lighting))
@@ -872,6 +886,12 @@ namespace rengine
 				0,
 				frame.constantBuffer->GetGPUVirtualAddress() + (objectIndex + 1) * constantStride);
 			mCommandList->DrawIndexedInstanced(static_cast<UINT>(std::size(CUBE_INDICES)), 1, 0, 0, 0);
+		}
+
+		// 마지막 패스는 렌더 상태를 바꿔도 된다. 포인터는 호출 중에만 대여한다.
+		if (overlay != nullptr && !overlay->record(overlay->userData, mCommandList.Get()))
+		{
+			return false;
 		}
 
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
