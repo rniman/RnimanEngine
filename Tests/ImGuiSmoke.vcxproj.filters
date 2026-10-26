@@ -1,0 +1,32 @@
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="ThirdParty" />
+    <Filter Include="ThirdParty\imgui" />
+    <Filter Include="ThirdParty\imgui\backends" />
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imconfig.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imgui.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_demo.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_draw.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imgui_internal.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_tables.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/imgui_widgets.cpp"><Filter>ThirdParty\imgui</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imstb_rectpack.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imstb_textedit.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/imstb_truetype.h"><Filter>ThirdParty\imgui</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_dx12.cpp"><Filter>ThirdParty\imgui\backends</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_dx12.h"><Filter>ThirdParty\imgui\backends</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_win32.cpp"><Filter>ThirdParty\imgui\backends</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_win32.h"><Filter>ThirdParty\imgui\backends</Filter></ClInclude>
+    <ClCompile Include="ImGuiSmoke.cpp" />
+    <ClCompile Include="../Sandbox/SandboxGui.cpp" />
+    <ClInclude Include="../Sandbox/SandboxGui.h" />
+    <ClCompile Include="../Engine/Rendering/D3D12Renderer.cpp" />
+    <ClCompile Include="../Engine/Assets/AssetLoader.cpp" />
+    <ClCompile Include="../Engine/Platform/Win32Window.cpp" />
+    <ClInclude Include="RendererReadback.h" />
+    <None Include="$(EngineRoot)ThirdParty/imgui/LICENSE.txt"><Filter>ThirdParty\imgui</Filter></None>
+    <None Include="$(EngineRoot)ThirdParty/imgui/README.rniman.md"><Filter>ThirdParty\imgui</Filter></None>
+    <None Include="$(EngineRoot)ThirdParty/imgui/SHA256SUMS.txt"><Filter>ThirdParty\imgui</Filter></None>
+  </ItemGroup>
+</Project>

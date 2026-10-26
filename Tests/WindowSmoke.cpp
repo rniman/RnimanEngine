@@ -181,7 +181,77 @@ namespace rengine
 			}
 
 			SendMessageW(handle, WM_CLOSE, 0, 0);
-			return Check(window.PumpMessages() == 0 && IsWindow(handle), "close requests exit before window destruction");
+			return Check(
+				window.PumpMessages() == 0 && IsWindow(handle),
+				"close requests exit before window destruction");
+		}
+
+		bool CheckCaptureOwnership(Win32Window& window)
+		{
+			const HWND handle = window.GetHandle();
+			window.SetInputCapture(false, false);
+			SendMessageW(handle, WM_SETFOCUS, 0, 0);
+			// 다른 입력 처리기가 이미 같은 HWND를 캡처한 상황을 만든다.
+			SetCapture(handle);
+			const bool acquired = GetCapture() == handle;
+			SendMessageW(handle, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(10, 10));
+			SendMessageW(handle, WM_RBUTTONUP, 0, MAKELPARAM(10, 10));
+			const bool borrowed = GetCapture() == handle;
+			if (GetCapture() == handle && !ReleaseCapture())
+			{
+				return Check(false, "release borrowed capture");
+			}
+
+			// UI가 없는 창은 직접 획득한 캡처를 오른쪽 버튼 해제 시 반환한다.
+			SendMessageW(handle, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(10, 10));
+			const bool owned = GetCapture() == handle;
+			SendMessageW(handle, WM_RBUTTONUP, 0, MAKELPARAM(10, 10));
+			return Check(
+				acquired && borrowed && owned && GetCapture() != handle,
+				"borrowed capture survives right-up; owned capture is released");
+		}
+
+		bool CheckUiCapture(Win32Window& window)
+		{
+			const HWND handle = window.GetHandle();
+			UINT observedMessages = 0;
+			const auto observeMessage = [](void* data, HWND, UINT, WPARAM, LPARAM) -> LRESULT
+			{
+				++*static_cast<UINT*>(data);
+				return 1;
+			};
+			window.SetMessageHandler(observeMessage, &observedMessages);
+
+			SendMessageW(handle, WM_SETFOCUS, 0, 0);
+			SendMessageW(handle, WM_KEYDOWN, 'W', 0);
+			SendMessageW(handle, WM_RBUTTONDOWN, 0, MAKELPARAM(10, 10));
+			SendMessageW(handle, WM_MOUSEMOVE, 0, MAKELPARAM(20, 20));
+			window.SetInputCapture(true, true);
+			const Win32Window::InputState captured = window.ConsumeInput();
+			SendMessageW(handle, WM_KEYDOWN, 'R', 0);
+			SendMessageW(handle, WM_RBUTTONDOWN, 0, MAKELPARAM(30, 30));
+			SendMessageW(handle, WM_MOUSEMOVE, 0, MAKELPARAM(40, 40));
+			const Win32Window::InputState blocked = window.ConsumeInput();
+			// UI가 이미 같은 HWND를 캡처한 경우에도 앱의 오른쪽 버튼 해제가 빼앗지 않는다.
+			SendMessageW(handle, WM_RBUTTONUP, 0, 0);
+			const bool keptCapture = GetCapture() == handle;
+			SendMessageW(handle, WM_SIZE, SIZE_RESTORED, MAKELPARAM(1280, 720));
+			SendMessageW(handle, WM_KILLFOCUS, 0, 0);
+			const bool lifecycle = !window.GetState().focused && window.GetState().resizePending;
+			window.SetMessageHandler(nullptr, nullptr);
+			const UINT beforeDetach = observedMessages;
+			SendMessageW(handle, WM_SETFOCUS, 0, 0);
+			window.SetInputCapture(false, false);
+			SendMessageW(handle, WM_KEYUP, 'W', 0);
+			SendMessageW(handle, WM_KEYUP, 'R', 0);
+			const Win32Window::InputState released = window.ConsumeInput();
+			window.ClearResizeRequest();
+			return Check(
+				!captured.keys['W'] && captured.mouseDeltaX == 0.0f &&
+				!blocked.keys['R'] && blocked.mouseDeltaX == 0.0f && keptCapture && lifecycle &&
+				observedMessages >= 10 && observedMessages == beforeDetach &&
+				!released.keys['W'] && !released.keys['R'],
+				"UI capture, lifecycle forwarding and callback detach");
 		}
 	}
 }
@@ -197,6 +267,16 @@ int main()
 		}
 
 		previousHandle = window.GetHandle();
+		if (!rengine::CheckCaptureOwnership(window))
+		{
+			return 1;
+		}
+
+		if (!rengine::CheckUiCapture(window))
+		{
+			return 1;
+		}
+
 		if (!rengine::CheckWindow(window))
 		{
 			return 1;
