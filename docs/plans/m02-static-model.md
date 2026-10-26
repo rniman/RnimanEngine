@@ -4,7 +4,7 @@
 
 ## 상태와 목표
 
-2026-10-21 기준 계획 수립·구현 전, 미태깅 상태다. **기존 큐브에 ImGui 편집 연결 → Unity 정적 메시·Transform 익스포트 → bin 로딩·GPU 업로드 → Phong 렌더링**을 Sandbox에 통합한다. 이후 같은 모델 장면으로 일반 오브젝트와 ECS를 비교한다.
+2026-10-22 기준 1단계 ImGui 최소 도입을 구현했으며 2단계 정적 모델은 미구현, M02 전체는 미태깅 상태다. **기존 큐브에 ImGui 편집 연결 → Unity 정적 메시·Transform 익스포트 → bin 로딩·GPU 업로드 → Phong 렌더링**을 Sandbox에 통합한다. 이후 같은 모델 장면으로 일반 오브젝트와 ECS를 비교한다.
 
 ## 1단계 · ImGui 최소 도입
 
@@ -16,7 +16,7 @@
 | 상태 | 개체 수·프레임 시간 등 최소 표시. CPU/GPU 분리 측정과 구분 |
 | 입력 | 플랫폼 입력은 ImGui에 전달하고 UI 캡처 상태로 앱 조작 구분. 기존 포커스·입력 소비 계약 유지 |
 
-패널은 Sandbox에 두고 일반 장면 데이터가 ImGui 타입을 요구하지 않게 한다. 어댑터 인터페이스는 현재 창·렌더러에 필요한 범위에서 정한다. 버전·원본 경로·라이선스·빌드 연결은 도입 시 기록한다. [공식 백엔드 문서](https://github.com/ocornut/imgui/blob/master/docs/BACKENDS.md) · [입력 FAQ](https://github.com/ocornut/imgui/blob/master/docs/FAQ.md#q-how-can-i-tell-whether-to-dispatch-mousekeyboard-to-dear-imgui-or-my-application)
+패널은 Sandbox에 두고 일반 장면 데이터가 ImGui 타입을 요구하지 않게 한다. 현재 연결은 [설계](../design.md#imgui-연결과-수명), 고정 버전·라이선스·빌드는 [의존성](../dependencies.md#dear-imgui), 검증과 한계는 [개발 문서](../development.md#imgui-최소-도입-2026-10-22)에 기록한다. [공식 백엔드 문서](https://github.com/ocornut/imgui/blob/master/docs/BACKENDS.md) · [입력 FAQ](https://github.com/ocornut/imgui/blob/master/docs/FAQ.md#q-how-can-i-tell-whether-to-dispatch-mousekeyboard-to-dear-imgui-or-my-application)
 
 ## 2단계 · 정적 모델 로딩과 렌더링
 
@@ -43,7 +43,7 @@
 | 통합·수명 | x64 Debug·Release 빌드·실행, 영향받는 Smoke·추가 계약 검증 통과. UI·모델 생성·리사이즈·종료의 진단 오류 없음 |
 | 문서 | 지원 데이터·준비 방법·검증 결과를 README·설계·의존성에 반영하고 실제 달성·제약·대상 커밋·태그를 마일스톤에 기록 |
 
-현재 데모의 검증은 위 미구현 기능의 통과를 뜻하지 않는다. 완료 시 이 계획에서 달성 기록을 연결한다.
+현재 ImGui·큐브 데모의 검증은 모델 로딩 등 미구현 기능의 통과를 뜻하지 않는다. 완료 시 이 계획에서 달성 기록을 연결한다.
 
 ## 후속 범위
 

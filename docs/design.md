@@ -34,7 +34,7 @@ Engine·Sandbox·Tests의 직접 작성 C++는 `rengine` 단일 루트를 사용
 
 ### 진입점과 수명
 
-[Main.cpp](../Sandbox/Main.cpp)의 `wWinMain` → [SandboxApp::Run](../Sandbox/SandboxApp.cpp) → 창 생성 → PNG 디코딩 → GPU 초기화·업로드 → 프레임 반복 → GPU 대기 → RAII 정리 순서다. 앱은 창을 렌더러보다 먼저 선언해 GPU 자원이 HWND보다 먼저 정리되게 한다.
+[Main.cpp](../Sandbox/Main.cpp)의 `wWinMain` → [SandboxApp::Run](../Sandbox/SandboxApp.cpp) → 창 생성 → PNG 디코딩 → GPU 초기화·업로드 → ImGui 초기화 → 프레임 반복 → GPU 대기 → ImGui·GPU·창의 RAII 정리 순서다. 앱은 창을 렌더러보다 먼저 선언해 GPU 자원이 HWND보다 먼저 정리되게 한다.
 
 초기 클라이언트 크기는 1280×720이다. Win32 오류는 API·오류 코드, D3D12 오류는 API·HRESULT·가능한 Device removed reason을 보고한다. 부분 자원은 RAII로 정리하며 실패 후 재사용·장치 손실 자동 복구는 지원하지 않는다.
 
@@ -48,17 +48,31 @@ Engine·Sandbox·Tests의 직접 작성 C++는 `rengine` 단일 루트를 사용
 
 ### 앱 실행
 
-SandboxApp은 창·렌더러·카메라·조명·큐브 3개를 소유하며 복사·이동하지 않는다. `Run`은 한 번만 호출하고 메시지 → 최소화 대기 → 프레임 경계 리사이즈 → 입력 소비 → `Update` → `Render`를 반복한다. 정상 종료는 GPU 완료 후 WM_QUIT 코드, 실패는 1을 반환한다.
+SandboxApp은 창·렌더러·SandboxGui·카메라·조명·큐브 3개를 소유하며 복사·이동하지 않는다. `Run`은 한 번만 호출하고 메시지 → 최소화 대기 → 프레임 경계 리사이즈 → ImGui `NewFrame`·캡처 반영 → 입력 소비 → `Update` → `DrawTools`·ImGui `Render` → 렌더러 `Render`를 반복한다. 정상 종료는 GPU 완료 후 WM_QUIT 코드, 실패는 1을 반환한다.
 
-카메라·조명은 포커스가 있을 때 조절한다. 입력 초기화 직후 이동 시간은 0, 일반 프레임은 최대 0.1초이며 큐브 회전은 절대 경과 시간을 사용한다. 카메라 초기 위치는 `(0, 2, -5)`·원점 시선이다. 키·속도는 [README](../README.md#카메라-조작)를 따른다.
+카메라·조명은 포커스가 있을 때 조절한다. 입력 초기화 직후 이동 시간은 0, 일반 프레임은 최대 0.1초이며 큐브 회전은 경과 시간의 차분을 현재 각도에 더한다. 선택 큐브의 회전 편집은 자동 회전을 멈추고, 정지 중 시간은 적립하지 않아 재개 시 편집한 각도에서 이어간다. 카메라 초기 위치는 `(0, 2, -5)`·원점 시선이다. 키·속도는 [README](../README.md#카메라-조작)를 따른다.
 
 ### 프레임별 Fence 동기화
 
 [D3D12Renderer](../Engine/Rendering/D3D12Renderer.cpp)는 두 프레임 슬롯의 Allocator·Constant Buffer·마지막 제출 Fence와 단일 Command List·Direct Queue·Fence/Event를 소유한다.
 
-슬롯 Fence 대기 → 상수 복사 → Allocator/List Reset → clear/draw → PRESENT 복귀 → 제출·Present·Signal 순서다. Fence는 단조 증가하며 완료 값 `UINT64_MAX`는 장치 제거로 처리한다. 슬롯 완료 전 자원을 재사용하지 않는다.
+슬롯 Fence 대기 → 상수 복사 → Allocator/List Reset → clear/큐브 draw/선택 UI draw → PRESENT 복귀 → 제출·Present·Signal 순서다. Fence는 단조 증가하며 완료 값 `UINT64_MAX`는 장치 제거로 처리한다. 슬롯 완료 전 자원을 재사용하지 않는다.
 
 리사이즈·종료와 미완료 제출이 있는 소멸자는 전체 GPU 완료를 시도한다. Signal·Present 실패도 정리 대상이며 소멸자의 `(void)WaitForGpu()`는 진단 후 정리를 계속하는 예외다. 대기 실패 시 완료를 보장하지 않는다. Resize는 동일 크기·0 크기를 무시하고 GPU 대기 후 백 버퍼·깊이 버퍼를 재생성한다. 상수 버퍼는 슬롯 완료 후 확장하며 오브젝트 감소 시 축소하지 않는다.
+
+### ImGui 연결과 수명
+
+`SandboxGui::Initialize`는 렌더러의 `GetOverlayContext`에서 device·direct queue·실제 sRGB RTV 형식·두 프레임 수를 대여한다. UI는 전용 shader-visible SRV 힙을 소유하며 기존 큐브 텍스처 힙은 유지한다. 장면 데이터·Engine은 ImGui 타입을 참조하지 않는다.
+
+`SandboxGui::BeginFrame` → `SandboxApp::Update/DrawTools` → `SandboxGui::EndFrame` → `D3D12Renderer::Render`의 선택 `OverlayPass` → `SandboxGui::Record` 순서다. Record는 슬롯 Fence 대기·큐브 그리기 이후, PRESENT 전환 전에 같은 Command List에 기록하고 UI 힙으로 전환한다. 다음 프레임은 큐브 렌더 상태를 다시 설정한다. 콜백과 userData는 호출 중에만 사용하며 백 버퍼·Command List를 보관하지 않는다. 공식 DX12 백엔드에는 두 프레임 수를 전달하며 Record는 제출당 한 번 호출한다.
+
+창의 `SetMessageHandler`는 모든 메시지를 UI에 전달한다. 반환값으로 창의 포커스·크기·종료 처리를 생략하지 않고 기본 처리에서 커서 등 처리 결과를 사용한다. `NewFrame` 후 `WantCaptureMouse/Keyboard`를 `SetInputCapture`에 반영해 누적 드래그·키를 비우고 새 앱 입력을 차단한다. 키 해제는 계속 반영하며, 캡처 해제 후 드래그는 새 오른쪽 버튼 누름으로 시작한다. UI 캡처 시작 시에는 공유 HWND의 캡처를 강제로 해제하지 않는다.
+
+오른쪽 드래그와 HWND 캡처의 소유는 구분한다. 창은 직접 획득한 캡처만 오른쪽 버튼 해제 시 반환한다. UI 백엔드가 메시지 전달 단계에서 먼저 획득한 캡처는 빌려 쓰며, 백엔드가 마지막 마우스 버튼 해제까지 관리한다. UI로 입력을 넘길 때 앱 소유 표시는 비우고, 포커스 해제·취소·최소화는 기존처럼 캡처와 앱 입력을 정리한다.
+
+SandboxGui는 렌더러 뒤에 선언해 먼저 파괴한다. 소멸자는 창 콜백 연결 해제 → GPU 대기 → DX12·Win32 백엔드 종료 → 문맥·힙 정리 순서로 부분 초기화·조기 반환도 처리한다. 대기 실패는 진단 후 최선의 정리를 수행하며 GPU 완료를 보장하지 않는다. 리사이즈는 기존 전체 GPU 대기·백 버퍼/깊이 재생성을 사용하고 UI 문맥·폰트·힙은 유지한다.
+
+편집 진입점은 `DrawTools`다. 개체는 `DrawObjectTools`, 조명은 `DrawLightingTools`에서 앱 소유 상태에 적용한다. 벡터 위젯의 배열 변환은 파일 내부 `EditVector3`가 맡는다. Transform은 편집 복사본 전체의 유한·비특이·양수 행렬식 검사 후 공개하고 Scale을 0.05~10으로 제한한다. 카메라는 `SetPosition`, 조명은 `SetParameters/Reset`을 사용한다. 조명의 `Adjust`와 `SetParameters`는 `ApplyParameters`로 같은 보정을 적용하며 패널도 `PITCH_LIMIT`·`MAX_INTENSITY`를 공유한다. ms/frame·FPS는 프레임 간격이며 CPU/GPU 분리 프로파일러가 아니다. 공급자 백엔드의 실패 전달 한계는 [의존성](dependencies.md#dear-imgui)에 기록한다.
 
 ## 큐브 렌더링 계약
 

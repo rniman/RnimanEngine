@@ -4,13 +4,14 @@
 
 ## 현재 프로젝트와 코드
 
-[솔루션](../RnimanEngine.slnx)의 세 실행 프로젝트는 x64 Debug·Release를 지원한다. 별도 Engine 라이브러리는 아직 없으며 각 프로젝트가 필요한 공통 원본을 직접 컴파일한다.
+[솔루션](../RnimanEngine.slnx)의 네 실행 프로젝트는 x64 Debug·Release를 지원한다. 별도 Engine 라이브러리는 아직 없으며 각 프로젝트가 필요한 공통 원본을 직접 컴파일한다.
 
 | 프로젝트 | 역할과 입력 |
 |---|---|
 | [Sandbox](../Sandbox/Sandbox.vcxproj) | 대표 데모. Sandbox 코드·Engine의 창/이미지 로더/렌더러·큐브 셰이더 |
 | [RendererSmoke](../Tests/RendererSmoke.vcxproj) | CPU·GPU 검증. D3D12Renderer.cpp·AssetLoader.cpp·큐브 셰이더와 테스트 코드 |
 | [WindowSmoke](../Tests/WindowSmoke.vcxproj) | Win32 창·입력 검증. Win32Window.cpp와 테스트 코드 |
+| [ImGuiSmoke](../Tests/ImGuiSmoke.vcxproj) | UI GPU·수명 검증. SandboxGui·Engine 창/로더/렌더러·ImGui·큐브 셰이더 |
 
 Smoke는 독립 테스트 실행 파일이며 Sandbox의 실행·배포 의존성이 아니다. 검사 범위·실행 명령은 [자동 검증](development.md#자동-검증)을 따른다.
 
@@ -23,10 +24,11 @@ RnimanEngine/
 │  ├─ Assets/                  # AssetLoader, ImageData
 │  ├─ Rendering/               # D3D12Renderer, RenderData
 │  └─ Math/                    # Transform
-├─ Build/SourcePaths.props     # EXE→원본 경로
-├─ Sandbox/                    # Main, SandboxApp, 카메라·조명, PCH, CubeShaders.props
+├─ Build/                      # SourcePaths.props, ImGui.props
+├─ Sandbox/                    # Main, SandboxApp, 카메라·조명·SandboxGui, PCH, CubeShaders.props
 ├─ Tests/                      # Smoke, readback·조명 검사, Assets/TextureTest.png
 ├─ Shaders/Samples/Sandbox/    # CubeVS.hlsl, CubePS.hlsl
+├─ ThirdParty/imgui/           # 고정 버전 원본·라이선스·해시
 ├─ Assets/                     # 별도 준비하는 로컬 에셋, 전체 Git 제외
 └─ docs/
 ```
@@ -36,11 +38,14 @@ RnimanEngine/
 | 소비자 | include 루트·PCH |
 |---|---|
 | Engine | Engine/. 구현은 자기 헤더를 먼저 포함하며 Sandbox·Tests·PCH를 참조하지 않음 |
-| Sandbox | Sandbox/·Engine/. Main·SandboxApp·pch.cpp에 PCH 사용, 직접 빌드하는 Engine 구현은 PCH 비사용 |
+| Sandbox | Sandbox/·Engine/·ThirdParty/imgui/. Main·SandboxApp·pch.cpp에 PCH 사용, Engine·SandboxGui·외부 구현은 PCH 비사용 |
 | RendererSmoke | Engine/·Sandbox/, PCH 비사용. 데모 카메라·조명은 조작 계약 검증에만 참조 |
 | WindowSmoke | Engine/, PCH 비사용 |
+| ImGuiSmoke | Engine/·Sandbox/·ThirdParty/imgui/, PCH 비사용 |
 
-앱 → 창·로더·렌더러·Transform, 로더 → ImageData·Windows/WIC, 렌더러 → ImageData·RenderData·EXE 경로 함수·D3D12의 의존성을 유지한다. 창은 GPU·카메라를, CPU 데이터·Transform은 앱·렌더러 구현을 참조하지 않는다. RendererReadback은 검증용 friend로 렌더러 내부에 접근한다.
+앱 → SandboxGui·창·로더·렌더러·Transform, SandboxGui → Win32/DX12 백엔드, 로더 → ImageData·Windows/WIC, 렌더러 → ImageData·RenderData·EXE 경로 함수·D3D12의 의존성을 유지한다. 창은 GPU·카메라를, CPU 데이터·Transform은 앱·렌더러 구현을 참조하지 않는다. RendererReadback은 검증용 friend로 렌더러 내부에 접근한다.
+
+SandboxGui·외부 ImGui 원본은 Sandbox·ImGuiSmoke만 빌드한다. 자체 연결 설정은 Build/ImGui.props에 두고 외부 원본은 수정하지 않는다. VC 프로젝트의 IDE 표시를 위해 props의 ClCompile·ClInclude·None은 와일드카드·세미콜론 목록 없이 파일별로 등록한다. 공급 파일을 추가·제거할 때 props와 두 소비자의 필터를 함께 맞춘다. Sandbox·ImGuiSmoke의 외부 코드는 ThirdParty 필터, Sandbox의 자체 설정은 Build 필터에 표시한다. ImGuiSmoke의 소규모 자체 테스트 입력은 평면 필터를 유지한다.
 
 공유 원본을 복사하거나 같은 EXE에 중복 등록하지 않는다. `../`는 프로젝트 입력·import에 사용하고 C++ include는 각 코드 루트 기준으로 작성한다. 필터는 실제 Engine 기능별 배치를 반영하며 네임스페이스는 [rengine 규약](design.md#네임스페이스)을 따른다. 적용·검증 근거는 [개발 문서](development.md#기존-적용의-검증-근거)에 둔다.
 
@@ -68,7 +73,7 @@ RnimanEngine/
 
 ### 셰이더
 
-[CubeShaders.props](../Sandbox/CubeShaders.props)를 Sandbox·RendererSmoke가 공유한다. SDK FXC의 `vs_5_0`·`ps_5_0`, 진입점 Main으로 컴파일해 각 프로젝트의 `$(OutDir)Shaders/CubeVS.cso`·`CubePS.cso`에 생성한다. Debug는 `/Zi /Od`, Release는 기본 최적화다. 런타임은 EXE 옆 Shaders를 읽는다.
+[CubeShaders.props](../Sandbox/CubeShaders.props)를 Sandbox·RendererSmoke·ImGuiSmoke가 공유한다. SDK FXC의 `vs_5_0`·`ps_5_0`, 진입점 Main으로 컴파일해 각 프로젝트의 `$(OutDir)Shaders/CubeVS.cso`·`CubePS.cso`에 생성한다. Debug는 `/Zi /Od`, Release는 기본 최적화다. 런타임은 EXE 옆 Shaders를 읽는다.
 
 HLSLI·매크로 변형·공용 캐시는 아직 없다. Shader Model 6 기능 도입 시 DXC 전환을 검토한다. 캐시를 추가하면 소스·include·매크로·진입점·대상·컴파일러 버전/옵션을 재사용 조건에 포함하고 완성된 결과만 공개한다.
 
@@ -90,7 +95,6 @@ HLSLI·매크로 변형·공용 캐시는 아직 없다. Shader Model 6 기능 �
 | Engine 라이브러리 프로젝트 | 독립 빌드·재사용이 필요할 때 추가하고 소비자의 직접 원본 빌드를 프로젝트 참조로 전환 |
 | Samples/ | 기능별 장면·입력·에셋을 가진 독립 실행 데모가 필요할 때 추가 |
 | Tools/ | Unity 익스포터 등 개발 도구 |
-| ThirdParty/ | 도입한 외부 코드·버전·라이선스 관리 |
 | Assets/Shared·Assets/Samples, 공용 셰이더 | 앱 간 실제 공유 수요에 맞춰 분리 |
 | Cache/ | 텍스처·셰이더 변환 비용이 생길 때 추가. [텍스처 캐시 규칙](dependencies.md#텍스처-변환과-캐시) 적용 |
 

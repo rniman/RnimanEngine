@@ -13,11 +13,18 @@
 
 Sandbox의 BaseColor PNG는 별도 준비하며 실제 원본의 배포 출처·라이선스는 미확인이다. 테스트 PNG는 직접 작성해 Tests/Assets에 포함한다. 준비·로딩 경로는 [README](../README.md#빌드와-실행)를 따른다. DDS·압축·밉맵·변환 캐시·독립 배포는 미구현이다.
 
+## Dear ImGui
+
+- 버전: [v1.93.0](https://github.com/ocornut/imgui/releases/tag/v1.93.0), 커밋 `c1aaac65e896a45f81f47a4d68f9959e0f86c859`의 master 계열. 도킹·다중 뷰포트는 사용하지 않는다.
+- 공급: [ThirdParty/imgui](../ThirdParty/imgui/README.rniman.md)에 코어·Demo·Win32/DX12 백엔드와 필요한 헤더만 원본 그대로 보관한다. [MIT 라이선스](../ThirdParty/imgui/LICENSE.txt), [SHA-256 목록](../ThirdParty/imgui/SHA256SUMS.txt)을 포함한다. 별도 설치·빌드 중 네트워크 복원은 없다.
+- 빌드: [Build/ImGui.props](../Build/ImGui.props)를 Sandbox·ImGuiSmoke만 import한다. 동일 `/MDd`·`/MD` 런타임을 사용하고 공급자 소스는 PCH 없이 `/W3`·`/WX` 해제로 컴파일한다. 자체 Engine·장면 데이터에는 ImGui 의존성을 추가하지 않는다.
+- 사용: [SandboxGui](../Sandbox/SandboxGui.cpp)가 단일 문맥·Win32/DX12 백엔드·전용 64칸 SRV 힙을 소유한다. 내장 폰트 사용, ini·로그 파일 쓰기는 비활성화한다. 사용자 텍스처 미리보기·폰트 파일·번역 UI는 아직 없다.
+- 한계: 공급자 DX12 백엔드의 일부 GPU 할당/Map·업로드 실패는 `void` 반환·assert 기반으로 처리되므로 앱으로 상세 HRESULT를 전달하지 못한다. 자체 초기화·힙·장치 제거는 진단하며, descriptor 고갈/잘못된 해제는 오류 표시 후 `std::terminate`로 종료하므로 스택 해제·RAII 정리를 보장하지 않는다. 이 시험 적용 예외와 보완 조건은 [전체 컨벤션 재검토](development.md#imgui-전체-컨벤션-재검토-2026-10-23)에 구분했다. 메모리 부족·장치 손실 복구는 보장하지 않는다. 필요 시 공급자 백엔드의 실패 전파를 별도 검토한다.
+
 ## 도입 계획과 후보
 
 | 구성 | 도입 시점·조건 |
 |---|---|
-| [Dear ImGui](https://github.com/ocornut/imgui) | 다음 구현. Win32·D3D12 백엔드로 개발용 편집·상태 표시를 연결. 상세 범위는 [M02 1단계](plans/m02-static-model.md#1단계--imgui-최소-도입) |
 | [d3dx12.h](https://github.com/microsoft/DirectX-Headers) | D3D12 반복 작업용 헬퍼가 필요할 때. 초기화·제출·동기화는 직접 관리 |
 | [WICTextureLoader12](https://github.com/microsoft/DirectXTex/tree/main/WICTextureLoader) | 일반 이미지 로딩의 대체 후보. 현재 직접 구현한 WIC 로더와 구분 |
 | [DDSTextureLoader12](https://github.com/microsoft/DirectXTex/tree/main/DDSTextureLoader), [DirectXTex / texconv](https://github.com/microsoft/DirectXTex) | DDS 로딩·이미지 변환·압축·밉맵이 필요할 때. 변환 API와 도구 호출 중 구현 방식 선택 |
