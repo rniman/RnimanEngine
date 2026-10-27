@@ -65,7 +65,7 @@ Dear ImGui v1.93.0 소스·MIT 라이선스는 저장소에 포함되어 별도 
 
 진입점은 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain` → [rengine::SandboxApp::Run](Sandbox/SandboxApp.cpp)이다. [실행·소유권 계약](docs/design.md#sandbox-실행-구조)과 [프로젝트별 소스 구성](docs/project-structure.md#현재-프로젝트와-코드)을 참고한다.
 
-Visual Studio 솔루션 탐색기의 Docs에서 README·AGENTS·프로젝트 문서를 열 수 있다. 마일스톤·계획은 Docs 하위의 milestones·plans에 표시하며 새 문서는 솔루션 항목에 수동 등록한다. 학습 메모(`docs/memo/`)는 솔루션 표시에서 제외하고 아래 링크로 연다.
+Visual Studio 솔루션 탐색기의 Docs에서도 프로젝트 문서를 열 수 있다.
 
 | 문서 | 내용 |
 |---|---|
@@ -74,7 +74,6 @@ Visual Studio 솔루션 탐색기의 Docs에서 README·AGENTS·프로젝트 문
 | [프로젝트 구조](docs/project-structure.md) | 코드 소속·의존성·공유 자원·출력 경로 |
 | [외부 라이브러리와 에셋](docs/dependencies.md) | 사용 중인 구성·도입 후보·텍스처 캐시 계획 |
 | [개발 설정과 검증](docs/development.md) | 컨벤션 적용 상태·설정·검증 명령 |
-| [ImGui 사용 메모](docs/memo/ImGui.md) | Dear ImGui 기본 개념·주요 함수·예제·ID·입력 캡처 |
 | [마일스톤 기록](docs/milestones/README.md) | 달성 범위·검증 결과·당시 제약 |
 
 작업 전 [컨벤션 적용 상태](docs/development.md#컨벤션)와 [AGENTS.md](AGENTS.md)를 확인한다.
