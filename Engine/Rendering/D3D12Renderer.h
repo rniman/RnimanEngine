@@ -86,15 +86,26 @@ namespace rengine
 		struct FrameResources
 		{
 			Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator;
+			// 첫 렌더링 전에는 비어 있다. 이후 슬롯의 Fence 완료 후에만 생성·확장한다.
 			Microsoft::WRL::ComPtr<ID3D12Resource> constantBuffer;
 			UINT64 fenceValue = 0;
 		};
 
+		// Debug 레이어·DXGI Factory와 하드웨어 장치를 생성한다. WARP로 대체하지 않는다.
+		[[nodiscard]] bool CreateDevice();
 		[[nodiscard]] bool CreateBackBuffers();
 		[[nodiscard]] bool CreateCubePipeline();
 		[[nodiscard]] bool CreateCubeGeometry();
 		[[nodiscard]] bool CreateTexture(const ImageData& image);
 		[[nodiscard]] bool CreateDepthBuffer();
+
+		// 호출자는 조명·크기 검증과 슬롯 Fence 대기를 끝낸다. 실패 시 해당 프레임을 제출하지 않는다.
+		// objectConstants·lighting을 읽어 frame.constantBuffer를 생성·갱신한다.
+		// 생성·확장 후 Map이 실패하면 false를 반환해도 버퍼는 이미 교체됐을 수 있다.
+		[[nodiscard]] bool UploadFrameConstants(
+			FrameResources& frame,
+			std::span<const ObjectTransformConstants> objectConstants,
+			const FrameLighting& lighting);
 
 		// 성공 시 resource를 교체하고 실패 시 유지한다. 기존 자원의 GPU 사용 완료는 호출자가 보장한다.
 		[[nodiscard]] bool CreateUploadBuffer(

@@ -139,10 +139,7 @@ namespace rengine
 
 		if (mouse)
 		{
-			mRotating = false;
-			mOwnsMouseCapture = false;
-			mInput.mouseDeltaX = 0.0f;
-			mInput.mouseDeltaY = 0.0f;
+			ClearMouseInput();
 		}
 	}
 
@@ -174,13 +171,18 @@ namespace rengine
 		return true;
 	}
 
-	void Win32Window::ClearInput(HWND window)
+	void Win32Window::ClearMouseInput()
 	{
-		mInput.keys.fill(false);
 		mRotating = false;
 		mOwnsMouseCapture = false;
 		mInput.mouseDeltaX = 0.0f;
 		mInput.mouseDeltaY = 0.0f;
+	}
+
+	void Win32Window::ClearInput(HWND window)
+	{
+		mInput.keys.fill(false);
+		ClearMouseInput();
 		mInput.resetFrameTime = true;
 
 		if (GetCapture() == window && !ReleaseCapture())
@@ -291,10 +293,7 @@ namespace rengine
 		}
 
 		case WM_CAPTURECHANGED:
-			mRotating = false;
-			mOwnsMouseCapture = false;
-			mInput.mouseDeltaX = 0.0f;
-			mInput.mouseDeltaY = 0.0f;
+			ClearMouseInput();
 			return 0;
 
 		case WM_MOUSEMOVE:

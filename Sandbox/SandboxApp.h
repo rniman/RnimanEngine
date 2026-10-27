@@ -8,9 +8,12 @@
 #include "Platform/Win32Window.h"
 #include "Rendering/D3D12Renderer.h"
 
+// Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
+#include <DirectXMath.h>
 
 #include <array>
+#include <cstddef>
 
 namespace rengine
 {
@@ -30,6 +33,31 @@ namespace rengine
 		[[nodiscard]] int Run(int showCommand);
 
 	private:
+		struct Cube
+		{
+			Transform transform;
+			// 개체 주소 대신 회전 성분을 지정하므로 Cube를 복사해도 다른 개체를 참조하지 않는다.
+			float DirectX::XMFLOAT3::* rotationAxis;
+			double rotationSpeed; // 회전 속도(radian/second)
+			bool autoRotate;
+		};
+
+		// 초기 목록에서 개수를 유도한다. 선택 UI·회전·렌더링은 이 목록과 같은 크기를 사용한다.
+		static constexpr std::array INITIAL_OBJECTS = {
+			Cube{
+				Transform{ { -2.5f, 0.0f, 1.0f }, {}, { 0.65f, 0.65f, 0.65f } },
+				&DirectX::XMFLOAT3::y, 0.7, true
+			},
+			Cube{
+				Transform{ { 0.0f, 1.0f, 4.0f }, {}, { 0.8f, 1.1f, 0.6f } },
+				&DirectX::XMFLOAT3::x, 0.35, true
+			},
+			Cube{
+				Transform{ { 3.5f, -3.0f, 3.0f }, {}, { 0.75f, 0.5f, 0.75f } },
+				&DirectX::XMFLOAT3::z, -0.7, true
+			}
+		};
+
 		[[nodiscard]] bool Initialize(int showCommand);
 		void Update(const Win32Window::InputState& input, float deltaSeconds, double elapsedSeconds);
 		void DrawTools();
@@ -44,15 +72,10 @@ namespace rengine
 
 		SandboxCamera mCamera;
 		SandboxLighting mLighting;
-		std::array<bool, 3> mAutoRotate = { true, true, true };
 		double mPreviousAnimationTime = 0.0;
-		int mSelectedObject = 0;
+		std::size_t mSelectedObject = 0;
 		bool mShowDemo = false;
 		bool mInvalidEdit = false;
-		std::array<Transform, 3> mObjects = {
-			Transform{ { -2.5f, 0.0f, 1.0f }, {}, { 0.65f, 0.65f, 0.65f } },
-			Transform{ { 0.0f, 1.0f, 4.0f }, {}, { 0.8f, 1.1f, 0.6f } },
-			Transform{ { 3.5f, -3.0f, 3.0f }, {}, { 0.75f, 0.5f, 0.75f } }
-		};
+		std::array<Cube, INITIAL_OBJECTS.size()> mObjects = INITIAL_OBJECTS;
 	};
 }

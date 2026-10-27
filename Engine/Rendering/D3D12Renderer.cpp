@@ -77,6 +77,7 @@ namespace rengine
 				lighting.shininess >= 1.0f && lighting.shininess <= 256.0f;
 		}
 
+		constexpr std::size_t CONSTANT_STRIDE = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 		constexpr DXGI_FORMAT BACK_BUFFER_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
 		constexpr DXGI_FORMAT COLOR_VIEW_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 		constexpr DXGI_FORMAT DEPTH_BUFFER_FORMAT = DXGI_FORMAT_D32_FLOAT;
@@ -121,7 +122,8 @@ namespace rengine
 
 	D3D12Renderer::~D3D12Renderer()
 	{
-		// 부분 초기화에는 제출된 작업이 없다. 제출 이후 실패한 경로도 완료를 시도한다.
+		// 초기화 중 텍스처 업로드를 제출한 뒤 실패한 경로도 포함해 미완료 GPU 작업의 완료를 시도한다.
+		// 대기 실패는 WaitForGpu가 보고하며, 완료를 보장하지 못해도 자원 정리를 계속한다.
 		if (mGpuWorkPending)
 		{
 			(void)WaitForGpu();
@@ -169,6 +171,143 @@ namespace rengine
 			return CheckResult(E_INVALIDARG, L"Initialize: invalid RGBA8 texture dimensions or pixel count");
 		}
 
+		if (!CreateDevice())
+		{
+			return false;
+		}
+
+		D3D12_COMMAND_QUEUE_DESC queueDescription{};
+		queueDescription.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+		if (!CheckResult(
+			mDevice->CreateCommandQueue(&queueDescription, IID_PPV_ARGS(&mCommandQueue)),
+			L"CreateCommandQueue"))
+		{
+			return false;
+		}
+
+		DXGI_SWAP_CHAIN_DESC1 swapDescription{};
+		swapDescription.Width = width;
+		swapDescription.Height = height;
+		swapDescription.Format = BACK_BUFFER_FORMAT;
+		swapDescription.SampleDesc.Count = 1;
+		swapDescription.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		swapDescription.BufferCount = BUFFER_COUNT;
+		swapDescription.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+
+		ComPtr<IDXGISwapChain1> swapChain;
+		if (!CheckResult(
+			mFactory->CreateSwapChainForHwnd(
+				mCommandQueue.Get(),
+				window,
+				&swapDescription,
+				nullptr,
+				nullptr,
+				&swapChain),
+			L"CreateSwapChainForHwnd"))
+		{
+			return false;
+		}
+
+		if (!CheckResult(swapChain.As(&mSwapChain), L"QueryInterface(IDXGISwapChain3)"))
+		{
+			return false;
+		}
+
+		if (!CheckResult(
+			mFactory->MakeWindowAssociation(window, DXGI_MWA_NO_ALT_ENTER),
+			L"MakeWindowAssociation"))
+		{
+			return false;
+		}
+
+		D3D12_DESCRIPTOR_HEAP_DESC heapDescription{};
+		heapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+		heapDescription.NumDescriptors = BUFFER_COUNT;
+		if (!CheckResult(
+			mDevice->CreateDescriptorHeap(&heapDescription, IID_PPV_ARGS(&mRtvHeap)),
+			L"CreateDescriptorHeap(RTV)"))
+		{
+			return false;
+		}
+
+		mRtvStride = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		if (!CreateBackBuffers())
+		{
+			return false;
+		}
+
+		heapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		heapDescription.NumDescriptors = 1;
+		if (!CheckResult(
+			mDevice->CreateDescriptorHeap(&heapDescription, IID_PPV_ARGS(&mDsvHeap)),
+			L"CreateDescriptorHeap(DSV)"))
+		{
+			return false;
+		}
+
+		for (auto& frame : mFrames)
+		{
+			if (!CheckResult(
+				mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.commandAllocator)),
+				L"CreateCommandAllocator"))
+			{
+				return false;
+			}
+		}
+
+		if (!CheckResult(
+			mDevice->CreateCommandList(
+				0,
+				D3D12_COMMAND_LIST_TYPE_DIRECT,
+				mFrames[0].commandAllocator.Get(),
+				nullptr,
+				IID_PPV_ARGS(&mCommandList)),
+			L"CreateCommandList"))
+		{
+			return false;
+		}
+
+		if (!CheckResult(mCommandList->Close(), L"CommandList::Close(initial)"))
+		{
+			return false;
+		}
+
+		if (!CheckResult(
+			mDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)),
+			L"CreateFence"))
+		{
+			return false;
+		}
+
+		mFenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+		if (mFenceEvent == nullptr)
+		{
+			return CheckResult(HRESULT_FROM_WIN32(GetLastError()), L"CreateEventW(Fence)");
+		}
+
+		mWidth = width;
+		mHeight = height;
+
+		if (!CreateDepthBuffer())
+		{
+			return false;
+		}
+
+		if (!CreateCubePipeline())
+		{
+			return false;
+		}
+
+		if (!CreateCubeGeometry())
+		{
+			return false;
+		}
+
+		return CreateTexture(texture);
+	}
+
+	bool D3D12Renderer::CreateDevice()
+	{
 		UINT factoryFlags = 0;
 #if defined(_DEBUG)
 		ComPtr<ID3D12Debug> debug;
@@ -246,140 +385,7 @@ namespace rengine
 			return CheckResult(DXGI_ERROR_UNSUPPORTED, L"No hardware adapter supports D3D12 feature level 11_0 (WARP disabled)");
 		}
 
-		D3D12_COMMAND_QUEUE_DESC queueDescription{};
-		queueDescription.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		if (!CheckResult(
-			mDevice->CreateCommandQueue(&queueDescription, IID_PPV_ARGS(&mCommandQueue)),
-			L"CreateCommandQueue"))
-		{
-			return false;
-		}
-
-		DXGI_SWAP_CHAIN_DESC1 swapDescription{};
-		swapDescription.Width = width;
-		swapDescription.Height = height;
-		swapDescription.Format = BACK_BUFFER_FORMAT;
-		swapDescription.SampleDesc.Count = 1;
-		swapDescription.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		swapDescription.BufferCount = BUFFER_COUNT;
-		swapDescription.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-
-		ComPtr<IDXGISwapChain1> swapChain;
-		if (!CheckResult(
-			mFactory->CreateSwapChainForHwnd(
-				mCommandQueue.Get(),
-				window,
-				&swapDescription,
-				nullptr,
-				nullptr,
-				&swapChain),
-			L"CreateSwapChainForHwnd"))
-		{
-			return false;
-		}
-
-		if (!CheckResult(swapChain.As(&mSwapChain), L"QueryInterface(IDXGISwapChain3)"))
-		{
-			return false;
-		}
-
-		if (!CheckResult(
-			mFactory->MakeWindowAssociation(window, DXGI_MWA_NO_ALT_ENTER),
-			L"MakeWindowAssociation"))
-		{
-			return false;
-		}
-
-		D3D12_DESCRIPTOR_HEAP_DESC heapDescription{};
-		heapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		heapDescription.NumDescriptors = BUFFER_COUNT;
-		if (!CheckResult(
-			mDevice->CreateDescriptorHeap(&heapDescription, IID_PPV_ARGS(&mRtvHeap)),
-			L"CreateDescriptorHeap(RTV)"))
-		{
-			return false;
-		}
-
-		mRtvStride = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		if (!CreateBackBuffers())
-		{
-			return false;
-		}
-
-		heapDescription.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-		heapDescription.NumDescriptors = 1;
-		if (!CheckResult(
-			mDevice->CreateDescriptorHeap(&heapDescription, IID_PPV_ARGS(&mDsvHeap)),
-			L"CreateDescriptorHeap(DSV)"))
-		{
-			return false;
-		}
-
-		for (auto& frame : mFrames)
-		{
-			// 루트 CBV도 GPU 주소가 256바이트 경계에 있어야 한다.
-			if (!CreateUploadBuffer(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, frame.constantBuffer))
-			{
-				return false;
-			}
-
-			if (!CheckResult(
-				mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.commandAllocator)),
-				L"CreateCommandAllocator"))
-			{
-				return false;
-			}
-		}
-
-		if (!CheckResult(
-			mDevice->CreateCommandList(
-				0,
-				D3D12_COMMAND_LIST_TYPE_DIRECT,
-				mFrames[0].commandAllocator.Get(),
-				nullptr,
-				IID_PPV_ARGS(&mCommandList)),
-			L"CreateCommandList"))
-		{
-			return false;
-		}
-
-		if (!CheckResult(mCommandList->Close(), L"CommandList::Close(initial)"))
-		{
-			return false;
-		}
-
-		if (!CheckResult(
-			mDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)),
-			L"CreateFence"))
-		{
-			return false;
-		}
-
-		mFenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-		if (mFenceEvent == nullptr)
-		{
-			return CheckResult(HRESULT_FROM_WIN32(GetLastError()), L"CreateEventW(Fence)");
-		}
-
-		mWidth = width;
-		mHeight = height;
-
-		if (!CreateDepthBuffer())
-		{
-			return false;
-		}
-
-		if (!CreateCubePipeline())
-		{
-			return false;
-		}
-
-		if (!CreateCubeGeometry())
-		{
-			return false;
-		}
-
-		return CreateTexture(texture);
+		return true;
 	}
 
 	bool D3D12Renderer::CreateCubePipeline()
@@ -773,41 +779,14 @@ namespace rengine
 		return RenderInternal(objectConstants, lighting, true, overlay);
 	}
 
-	bool D3D12Renderer::RenderInternal(
+	bool D3D12Renderer::UploadFrameConstants(
+		FrameResources& frame,
 		std::span<const ObjectTransformConstants> objectConstants,
-		const FrameLighting& lighting,
-		bool present,
-		const OverlayPass* overlay)
+		const FrameLighting& lighting)
 	{
-		if (overlay != nullptr && overlay->record == nullptr)
-		{
-			return CheckResult(E_INVALIDARG, L"Render: missing overlay recorder");
-		}
-
-		constexpr std::size_t constantStride = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-		static_assert(sizeof(ObjectTransformConstants) <= constantStride && sizeof(FrameLighting) <= constantStride);
-		if (!IsValidLighting(lighting))
-		{
-			return CheckResult(E_INVALIDARG, L"Render: invalid Phong lighting values");
-		}
-
-		if (objectConstants.size() > std::numeric_limits<std::size_t>::max() / constantStride - 1)
-		{
-			return CheckResult(E_INVALIDARG, L"Render: constant buffer size overflow");
-		}
-
-		const UINT index = mSwapChain->GetCurrentBackBufferIndex();
-		auto& frame = mFrames[index];
-
-		// 같은 백 버퍼를 다시 사용할 때만 이전 기록 메모리의 GPU 사용 완료를 확인한다.
-		if (!WaitForFence(frame.fenceValue))
-		{
-			return false;
-		}
-
-		// 슬롯의 Fence 완료 후에만 확장·복사한다. 다른 슬롯의 실행 중인 상수는 유지한다.
-		const std::size_t requiredBytes = (objectConstants.size() + 1) * constantStride;
-		if (requiredBytes > frame.constantBuffer->GetDesc().Width)
+		// 슬롯의 첫 사용 시 필요한 크기로 생성한다. 생성·확장·복사는 슬롯의 Fence 완료 후에만 수행한다.
+		const std::size_t requiredBytes = (objectConstants.size() + 1) * CONSTANT_STRIDE;
+		if (!frame.constantBuffer || requiredBytes > frame.constantBuffer->GetDesc().Width)
 		{
 			if (!CreateUploadBuffer(requiredBytes, frame.constantBuffer))
 			{
@@ -827,13 +806,52 @@ namespace rengine
 		for (std::size_t objectIndex = 0; objectIndex < objectConstants.size(); ++objectIndex)
 		{
 			std::memcpy(
-				static_cast<std::byte*>(mapped) + (objectIndex + 1) * constantStride,
+				static_cast<std::byte*>(mapped) + (objectIndex + 1) * CONSTANT_STRIDE,
 				&objectConstants[objectIndex],
 				sizeof(ObjectTransformConstants));
 		}
 
 		const D3D12_RANGE writtenRange{ 0, requiredBytes };
 		frame.constantBuffer->Unmap(0, &writtenRange);
+
+		return true;
+	}
+
+	bool D3D12Renderer::RenderInternal(
+		std::span<const ObjectTransformConstants> objectConstants,
+		const FrameLighting& lighting,
+		bool present,
+		const OverlayPass* overlay)
+	{
+		if (overlay != nullptr && overlay->record == nullptr)
+		{
+			return CheckResult(E_INVALIDARG, L"Render: missing overlay recorder");
+		}
+
+		static_assert(sizeof(ObjectTransformConstants) <= CONSTANT_STRIDE && sizeof(FrameLighting) <= CONSTANT_STRIDE);
+		if (!IsValidLighting(lighting))
+		{
+			return CheckResult(E_INVALIDARG, L"Render: invalid Phong lighting values");
+		}
+
+		if (objectConstants.size() > std::numeric_limits<std::size_t>::max() / CONSTANT_STRIDE - 1)
+		{
+			return CheckResult(E_INVALIDARG, L"Render: constant buffer size overflow");
+		}
+
+		const UINT index = mSwapChain->GetCurrentBackBufferIndex();
+		auto& frame = mFrames[index];
+
+		// 같은 백 버퍼를 다시 사용할 때만 이전 기록 메모리의 GPU 사용 완료를 확인한다.
+		if (!WaitForFence(frame.fenceValue))
+		{
+			return false;
+		}
+
+		if (!UploadFrameConstants(frame, objectConstants, lighting))
+		{
+			return false;
+		}
 
 		if (!CheckResult(frame.commandAllocator->Reset(), L"CommandAllocator::Reset"))
 		{
@@ -884,7 +902,7 @@ namespace rengine
 		{
 			mCommandList->SetGraphicsRootConstantBufferView(
 				0,
-				frame.constantBuffer->GetGPUVirtualAddress() + (objectIndex + 1) * constantStride);
+				frame.constantBuffer->GetGPUVirtualAddress() + (objectIndex + 1) * CONSTANT_STRIDE);
 			mCommandList->DrawIndexedInstanced(static_cast<UINT>(std::size(CUBE_INDICES)), 1, 0, 0, 0);
 		}
 
@@ -908,7 +926,7 @@ namespace rengine
 		mGpuWorkPending = true;
 
 		// 픽셀 테스트는 flip-discard의 Present 이후 내용에 의존하지 않고 같은 draw 경로를 읽는다.
-		HRESULT presentResult = present ? mSwapChain->Present(1, 0) : S_OK;
+		const HRESULT presentResult = present ? mSwapChain->Present(1, 0) : S_OK;
 
 		// Present 이후에도 제출한 프레임의 인덱스에 기록한다. 실패 시 소멸자가 전체 대기를 시도한다.
 		const UINT64 target = ++mFenceValue;

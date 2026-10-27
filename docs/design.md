@@ -54,11 +54,15 @@ SandboxApp은 창·렌더러·SandboxGui·카메라·조명·큐브 3개를 소�
 
 ### 프레임별 Fence 동기화
 
+Sandbox의 큐브는 `SandboxApp::Cube`에 Transform·회전 축·초당 회전 속도·자동 회전 여부를 함께 보관한다. `INITIAL_OBJECTS`의 초기 항목 수로 실제 큐브와 렌더링 상수 배열 크기를 정하며 선택 UI는 실제 목록을 순회한다. 회전 축은 XMFLOAT3 멤버 포인터로 지정해 개체 주소와 분리한다. 초기 목록은 비어 있지 않은 고정 데모 목록이며 런타임 추가·삭제는 지원하지 않는다.
+
 [D3D12Renderer](../Engine/Rendering/D3D12Renderer.cpp)는 두 프레임 슬롯의 Allocator·Constant Buffer·마지막 제출 Fence와 단일 Command List·Direct Queue·Fence/Event를 소유한다.
+
+`Initialize`는 입력 검증 후 `CreateDevice`에 Debug 레이어·DXGI Factory·하드웨어 장치 선택을 맡기고 나머지 GPU 자원을 순서대로 생성한다. `RenderInternal`은 입력 검증과 슬롯 Fence 대기를 직접 수행한 뒤 `UploadFrameConstants`에 버퍼 생성·확장·Map·복사·Unmap을 맡긴다. 복사와 draw의 오브젝트 주소 계산은 파일 내부 `CONSTANT_STRIDE`를 공유한다. 두 헬퍼는 실패를 false로 전달하며 호출자는 이후 초기화 또는 제출을 중단한다.
 
 슬롯 Fence 대기 → 상수 복사 → Allocator/List Reset → clear/큐브 draw/선택 UI draw → PRESENT 복귀 → 제출·Present·Signal 순서다. Fence는 단조 증가하며 완료 값 `UINT64_MAX`는 장치 제거로 처리한다. 슬롯 완료 전 자원을 재사용하지 않는다.
 
-리사이즈·종료와 미완료 제출이 있는 소멸자는 전체 GPU 완료를 시도한다. Signal·Present 실패도 정리 대상이며 소멸자의 `(void)WaitForGpu()`는 진단 후 정리를 계속하는 예외다. 대기 실패 시 완료를 보장하지 않는다. Resize는 동일 크기·0 크기를 무시하고 GPU 대기 후 백 버퍼·깊이 버퍼를 재생성한다. 상수 버퍼는 슬롯 완료 후 확장하며 오브젝트 감소 시 축소하지 않는다.
+리사이즈·종료와 미완료 제출이 있는 소멸자는 전체 GPU 완료를 시도한다. Signal·Present 실패도 정리 대상이며 소멸자의 `(void)WaitForGpu()`는 진단 후 정리를 계속하는 예외다. 대기 실패 시 완료를 보장하지 않는다. Resize는 동일 크기·0 크기를 무시하고 GPU 대기 후 백 버퍼·깊이 버퍼를 재생성한다. 상수 버퍼는 슬롯의 첫 렌더링에서 `(오브젝트 수 + 1) × 256`바이트로 생성한다. 빈 목록도 조명용 256바이트를 사용한다. 생성·확장·복사는 슬롯 완료 후 수행하며 오브젝트 감소 시 축소하지 않는다. 최초 상수 버퍼 할당 실패는 Initialize가 아닌 Render에서 보고한다.
 
 ### ImGui 연결과 수명
 

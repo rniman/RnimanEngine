@@ -7,11 +7,12 @@
 
 namespace rengine
 {
-	// Sandbox 전용 자유 이동 카메라. 입력 수집과 GPU 자원은 소유하지 않는다.
+	/// @brief Sandbox 전용 자유 이동 카메라. 입력 수집과 GPU 자원은 소유하지 않는다.
 	class SandboxCamera
 	{
 	public:
 		/// @brief 마우스 이동량(픽셀)을 yaw·pitch에 반영한다.
+		/// @note 호출자는 유한한 이동량을 전달한다. yaw는 순환하고 pitch는 극점 직전으로 제한한다.
 		void Rotate(float deltaX, float deltaY)
 		{
 			constexpr float sensitivity = 0.003f;
@@ -21,7 +22,8 @@ namespace rengine
 		}
 
 		/// @brief 전후는 시선 방향, 좌우는 수평, 상하는 월드 Y축. 대각선 이동도 같은 속도로 맞춘다.
-		/// @param seconds 이동에 반영할 시간(초).
+		/// @param seconds 유한한 0 이상의 이동 시간(초). Sandbox 프레임 루프는 0~0.1초를 전달한다.
+		/// @note right·up·forward는 유한한 -1~1 입력이다. 입력 검증·시간 제한은 호출자가 담당한다.
 		void Move(float right, float up, float forward, float seconds)
 		{
 			const DirectX::XMVECTOR direction = DirectX::XMVectorAdd(

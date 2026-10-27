@@ -75,6 +75,8 @@ namespace rengine
 	private:
 		static LRESULT CALLBACK ProcessWindowMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
 		LRESULT HandleMessage(HWND window, UINT message, WPARAM wParam, LPARAM lParam);
+		// 회전·캡처 소유 표시·이동량만 비운다. OS 캡처 해제·키·시간 초기화는 호출자가 결정한다.
+		void ClearMouseInput();
 		void ClearInput(HWND window);
 
 		HINSTANCE mInstance;

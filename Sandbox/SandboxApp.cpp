@@ -196,14 +196,13 @@ namespace rengine
 		// 시간 기준은 유지하되 편집한 회전을 덮어쓰지 않는다. 정지 중 시간은 회전에 적립하지 않는다.
 		const double animationSeconds = elapsedSeconds - mPreviousAnimationTime;
 		mPreviousAnimationTime = elapsedSeconds;
-		float* angles[] = { &mObjects[0].rotation.y, &mObjects[1].rotation.x, &mObjects[2].rotation.z };
-		constexpr double speeds[] = { 0.7, 0.35, -0.7 };
-		for (std::size_t index = 0; index < mObjects.size(); ++index)
+		for (auto& object : mObjects)
 		{
-			if (mAutoRotate[index])
+			if (object.autoRotate)
 			{
-				*angles[index] = static_cast<float>(std::remainder(
-					*angles[index] + animationSeconds * speeds[index],
+				float& angle = object.transform.rotation.*object.rotationAxis;
+				angle = static_cast<float>(std::remainder(
+					angle + animationSeconds * object.rotationSpeed,
 					static_cast<double>(DirectX::XM_2PI)));
 			}
 		}
@@ -250,10 +249,30 @@ namespace rengine
 	void SandboxApp::DrawObjectTools()
 	{
 		ImGui::SeparatorText("Cube");
-		ImGui::Combo("Selected", &mSelectedObject, "Cube 0\0Cube 1\0Cube 2\0");
-		const std::size_t index = static_cast<std::size_t>(mSelectedObject);
+		const std::string selectedLabel = "Cube " + std::to_string(mSelectedObject);
+		if (ImGui::BeginCombo("Selected", selectedLabel.c_str()))
+		{
+			for (std::size_t index = 0; index < mObjects.size(); ++index)
+			{
+				const std::string label = "Cube " + std::to_string(index);
+				const bool selected = index == mSelectedObject;
+				if (ImGui::Selectable(label.c_str(), selected))
+				{
+					mSelectedObject = index;
+				}
+
+				if (selected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+
+			ImGui::EndCombo();
+		}
+
+		auto& object = mObjects[mSelectedObject];
 		// 편집 복사본 전체를 검증한 뒤 공개해 부분 적용을 피한다.
-		Transform edited = mObjects[index];
+		Transform edited = object.transform;
 		bool changed = EditVector3("Position", edited.position, 0.02f, -100.0f, 100.0f);
 		const bool rotationChanged = EditVector3(
 			"Rotation (rad)",
@@ -269,15 +288,15 @@ namespace rengine
 			mInvalidEdit = !BuildObjectTransformConstants(edited.GetWorld(), DirectX::XMMatrixIdentity()).has_value();
 			if (!mInvalidEdit)
 			{
-				mObjects[index] = edited;
+				object.transform = edited;
 				if (rotationChanged)
 				{
-					mAutoRotate[index] = false;
+					object.autoRotate = false;
 				}
 			}
 		}
 
-		ImGui::Checkbox("Auto rotate", &mAutoRotate[index]);
+		ImGui::Checkbox("Auto rotate", &object.autoRotate);
 		ImGui::TextWrapped("Editing rotation pauses this cube; resume from edited angle.");
 	}
 
@@ -329,11 +348,11 @@ namespace rengine
 			0.1f,
 			100.0f);
 
-		std::array<ObjectTransformConstants, 3> objectConstants;
+		std::array<ObjectTransformConstants, INITIAL_OBJECTS.size()> objectConstants;
 		for (std::size_t index = 0; index < mObjects.size(); ++index)
 		{
 			const std::optional<ObjectTransformConstants> constantsResult = BuildObjectTransformConstants(
-				mObjects[index].GetWorld(), view * projection);
+				mObjects[index].transform.GetWorld(), view * projection);
 			if (!constantsResult)
 			{
 				const wchar_t* message = L"Sandbox cube transform is non-finite, singular or reflected.";
