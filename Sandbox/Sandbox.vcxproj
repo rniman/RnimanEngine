@@ -107,7 +107,6 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClInclude Include="SandboxCamera.h" />
-    <ClInclude Include="../Engine/Math/Transform.h" />
     <ClInclude Include="../Engine/Platform/Win32Window.h" />
     <ClCompile Include="../Engine/Rendering/D3D12Renderer.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>

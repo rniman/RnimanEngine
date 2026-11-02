@@ -4,20 +4,21 @@
 
 ## 현재 프로젝트와 코드
 
-네 실행 프로젝트가 필요한 공통 원본을 직접 컴파일한다. 별도 Engine 라이브러리는 없으며 Smoke는 Sandbox의 배포 의존성이 아니다.
+네 실행 프로젝트가 필요한 공통 원본을 직접 컴파일하며, Math Utility 프로젝트가 수학 헤더를 별도로 관리한다. 별도 Engine 라이브러리는 없으며 Smoke는 Sandbox의 배포 의존성이 아니다.
 
 | 프로젝트 | 주요 입력 |
 |---|---|
+| [Math](../Engine/Math/Math.vcxproj) | 헤더 전용 Utility 프로젝트. 수치·벡터·행렬·Quaternion·Transform 헤더 표시·관리, 컴파일·링크 산출물 없음 |
 | [Sandbox](../Sandbox/Sandbox.vcxproj) | 앱·카메라·조명·UI, Engine 창·이미지/모델 로더·렌더러, ReferenceImporter·ImGui·셰이더 |
-| [RendererSmoke](../Tests/RendererSmoke.vcxproj) | 렌더러·이미지/모델 로더·ReferenceImporter·셰이더, 카메라/조명·CPU/GPU 검사 |
+| [RendererSmoke](../Tests/RendererSmoke.vcxproj) | 렌더러·이미지/모델 로더·ReferenceImporter·셰이더, 카메라/조명·MathChecks·CPU/GPU 검사 |
 | [WindowSmoke](../Tests/WindowSmoke.vcxproj) | Win32Window·입력 검사. D3D12 의존성 없음 |
 | [ImGuiSmoke](../Tests/ImGuiSmoke.vcxproj) | SandboxGui·Engine 창/이미지 로더/렌더러·ImGui·셰이더 |
 
 | 경로 | 역할 |
 |---|---|
-| Engine/Platform, Assets, Rendering, Math | 창·CPU 에셋·GPU 렌더링·Transform |
+| Engine/Platform, Assets, Rendering, Math | 창·CPU 에셋·GPU 렌더링·수학/Transform |
 | Sandbox/ | 실행·조작·UI·PCH·CubeShaders.props |
-| Tests/ | Smoke·readback·조명/모델 검사와 기준 Assets |
+| Tests/ | Smoke·readback·수학/조명/모델 검사와 기준 Assets |
 | Build/ | SourcePaths.props·ImGui.props·ModelImporter.props |
 | Shaders/Samples/Sandbox/ | CubeVS.hlsl·CubePS.hlsl. 모델에도 같은 Phong 파이프라인 사용 |
 | ThirdParty/ | imgui·ReferenceImporter 소스·공급 기록 |
@@ -37,11 +38,19 @@
 
 삭제된 계획·목록 문서의 대체 위치는 [문서 통합 기록](roadmap.md#기존-계획과-문서-통합)에 둔다. 현재 솔루션 Docs에는 유지 중인 문서만 등록한다.
 
+### 헤더 전용 Math 모듈
+
+[Math Utility](../Engine/Math/Math.vcxproj)는 수치·벡터·행렬·Quaternion·Transform의 여섯 헤더를 관리한다. 소비자는 Engine include 경로로 포함하며 별도 cpp·lib·ProjectReference는 필요 없다. 헤더는 소비 프로젝트에서 컴파일한다. Utility의 C++20·Engine include 경로·`/utf-8`은 자체 편집·분석 문맥을 위한 설정이다.
+
+실제 사용 흐름은 `LoadStaticModel → DecomposeTransform`, `BuildObjectTransformConstants → BuildNormalTransform`이다. 파일 오류 전달은 Assets, WVP·셰이더 상수 구성은 Rendering에 남는다. 기존 TRS 계산식과 [경계 결함](static-model.md#계층-지원-범위와-알려진-문제)은 유지된다.
+
+연산 계약·사용 예·[MathChecks의 실행 흐름](math.md#mathchecks-검증)은 Math 문서에서 관리한다. MathChecks는 RendererSmoke에 포함하며 별도 MathTests 프로젝트는 없다. 변경 당시 검증은 [개발 기록](development.md#math-적용과-검증-2026-11-02)을 따른다.
+
 ### 현재 include 기준과 허용 의존성
 
 Engine은 `Engine/`을 include 루트로 쓰고 Sandbox·Tests·PCH에 의존하지 않는다. Sandbox·UI/렌더러 검사는 필요한 `Sandbox/` 루트를 추가한다. ImGui·ReferenceImporter include 루트는 각각 사용하는 프로젝트에만 props로 추가한다.
 
-앱은 창·로더·렌더러·Transform을 조합하고, 이미지 로더는 WIC, 모델 로더는 ReferenceImporter를 사용한다. ModelLoader는 RenderData의 CPU 변환 검증을 재사용하지만 D3D12 객체는 사용하지 않는다. Engine 공개 데이터에 공급자 파서 타입·ImGui 타입을 노출하지 않는다. RendererReadback의 friend 접근은 검증에 한정한다.
+앱은 창·로더·렌더러·Transform을 조합하고, 이미지 로더는 WIC, 모델 로더는 ReferenceImporter를 사용한다. ModelLoader는 헤더 전용 Math/TransformMath.h의 TRS 복원을 사용하며 Rendering에 의존하지 않는다. RenderData도 같은 Math 모듈의 아핀 검증·역전치 계산을 사용한다. Math는 DirectXMath·표준 라이브러리와 기존 Transform만 사용하고 Assets·Rendering·ImGui에 의존하지 않는다. Engine 공개 데이터에 공급자 파서 타입·ImGui 타입을 노출하지 않는다. RendererReadback의 friend 접근은 검증에 한정한다.
 
 Main·SandboxApp·pch.cpp만 PCH를 사용하며 Engine·SandboxGui·Smoke·공급자 원본은 사용하지 않는다. C++ include는 코드 루트 기준, 프로젝트 입력·import는 상대 경로를 사용한다. 공통 원본을 복사하거나 같은 EXE에 중복 등록하지 않는다.
 

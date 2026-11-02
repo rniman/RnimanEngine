@@ -1,5 +1,6 @@
 // 별도 콘솔 테스트이므로 PCH 없이 컴파일한다.
 #include "LightingChecks.h"
+#include "MathChecks.h"
 #include "ModelChecks.h"
 #include "MultiModelChecks.h"
 #include "RendererReadback.h"
@@ -411,6 +412,11 @@ namespace rengine
 
 int main()
 {
+	if (!rengine::CheckMathUtilities())
+	{
+		return 1;
+	}
+
 	if (!rengine::CheckLightingData())
 	{
 		std::puts("FAIL: lighting control or transform contract");

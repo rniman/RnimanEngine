@@ -7,6 +7,7 @@
     <File Path="AGENTS.md" />
     <File Path="docs/roadmap.md" />
     <File Path="docs/design.md" />
+    <File Path="docs/math.md" />
     <File Path="docs/static-model.md" />
     <File Path="docs/project-structure.md" />
     <File Path="docs/dependencies.md" />
@@ -19,4 +20,5 @@
   <Project Path="Tests/RendererSmoke.vcxproj" Id="af5930c9-8829-4391-8492-9afa90cf5deb" />
   <Project Path="Tests/WindowSmoke.vcxproj" Id="8e6c37c0-53cc-4c0d-9928-6c06a4e704ae" />
   <Project Path="Tests/ImGuiSmoke.vcxproj" Id="c9d362a7-063e-47b1-9dd9-ee39f6f176dd" />
+  <Project Path="Engine/Math/Math.vcxproj" Id="8358e898-d793-4cde-8473-df2a69e55f6a" />
 </Solution>

@@ -4,7 +4,7 @@
 #include "Assets/MeshData.h"
 
 #include "Math/Transform.h"
-#include "Rendering/RenderData.h"
+#include "Math/TransformMath.h"
 
 #include <DirectXMath.h>
 #include <ExportFormatReader.h>
@@ -47,64 +47,6 @@ namespace rengine
 			}
 
 			return value < 1.0f ? std::pow((value + 0.055f) / 1.055f, 2.4f) : std::pow(value, 2.2f);
-		}
-
-		Transform ReadTransform(const DirectX::XMMATRIX& world)
-		{
-			if (!BuildObjectTransformConstants(world, DirectX::XMMatrixIdentity()))
-			{
-				throw std::runtime_error("Unsupported non-affine, singular or reflected model transform");
-			}
-
-			DirectX::XMVECTOR scale{};
-			DirectX::XMVECTOR rotation{};
-			DirectX::XMVECTOR translation{};
-			if (!DirectX::XMMatrixDecompose(&scale, &rotation, &translation, world))
-			{
-				throw std::runtime_error("Model transform cannot be decomposed as TRS");
-			}
-
-			Transform transform;
-			DirectX::XMStoreFloat3(&transform.position, translation);
-			DirectX::XMStoreFloat3(&transform.scale, scale);
-			if (transform.scale.x <= 0 || transform.scale.y <= 0 || transform.scale.z <= 0)
-			{
-				throw std::runtime_error("Model requires positive TRS scale");
-			}
-
-			DirectX::XMFLOAT4X4 matrix{};
-			DirectX::XMStoreFloat4x4(&matrix, DirectX::XMMatrixRotationQuaternion(rotation));
-			// Transform의 pitch/yaw/roll 순서로 복원하고 gimbal lock에서는 roll을 0으로 고정한다.
-			transform.rotation.x = std::asin(std::clamp(-matrix._32, -1.0f, 1.0f));
-			if (std::abs(std::cos(transform.rotation.x)) > 1e-5f)
-			{
-				transform.rotation.y = std::atan2(matrix._31, matrix._33);
-				transform.rotation.z = std::atan2(matrix._12, matrix._22);
-			}
-			else
-			{
-				transform.rotation.y = std::atan2(-matrix._13, matrix._11);
-				transform.rotation.z = 0.0f;
-			}
-
-			// 편집 가능한 TRS로 재구성되지 않는 전단을 조용히 근사하지 않는다.
-			DirectX::XMFLOAT4X4 original{};
-			DirectX::XMFLOAT4X4 rebuilt{};
-			DirectX::XMStoreFloat4x4(&original, world);
-			DirectX::XMStoreFloat4x4(&rebuilt, transform.GetWorld());
-			for (std::size_t row = 0; row < 4; ++row)
-			{
-				for (std::size_t column = 0; column < 4; ++column)
-				{
-					if (std::abs(original.m[row][column] - rebuilt.m[row][column]) >
-						1e-4f * std::max(1.0f, std::abs(original.m[row][column])))
-					{
-						throw std::runtime_error("Model transform contains unsupported shear or unstable TRS");
-					}
-				}
-			}
-
-			return transform;
 		}
 
 		// source가 살아 있는 동안만 유효하다. 기본 재질(-1)은 별도 surface가 없다.
@@ -189,7 +131,12 @@ namespace rengine
 				}
 
 				meshNode = &node;
-				model.transform = ReadTransform(world);
+				const TransformDecompositionResult decomposed = DecomposeTransform(world);
+				if (!decomposed.transform)
+				{
+					throw std::runtime_error(decomposed.error);
+				}
+				model.transform = *decomposed.transform;
 			}
 
 			if (meshNode == nullptr)

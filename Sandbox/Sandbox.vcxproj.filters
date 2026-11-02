@@ -17,9 +17,6 @@
     <Filter Include="Engine\Rendering">
       <UniqueIdentifier>{fc4a1ab6-f68e-40ac-b99a-0fa57d4764eb}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Math">
-      <UniqueIdentifier>{78160f4c-f3e6-4efb-a51c-2fa1644b9d57}</UniqueIdentifier>
-    </Filter>
     <None Include="$(EngineRoot)ThirdParty/imgui/SHA256SUMS.txt"><Filter>ThirdParty\imgui</Filter></None>
   </ItemGroup>
   <ItemGroup>
@@ -67,9 +64,6 @@
     <ClInclude Include="SandboxApp.h" />
     <ClCompile Include="SandboxApp.cpp" />
     <ClInclude Include="SandboxCamera.h" />
-    <ClInclude Include="../Engine/Math/Transform.h">
-      <Filter>Engine\Math</Filter>
-    </ClInclude>
     <ClInclude Include="../Engine/Platform/Win32Window.h">
       <Filter>Engine\Platform</Filter>
     </ClInclude>

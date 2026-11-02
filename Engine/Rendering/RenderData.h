@@ -1,8 +1,9 @@
 #pragma once
 
+#include "Math/TransformMath.h"
+
 #include <DirectXMath.h>
 
-#include <cmath>
 #include <optional>
 
 namespace rengine
@@ -35,23 +36,14 @@ namespace rengine
 		const DirectX::XMMATRIX& world,
 		const DirectX::XMMATRIX& viewProjection)
 	{
-		if (DirectX::XMMatrixIsNaN(world) || DirectX::XMMatrixIsInfinite(world) ||
-			DirectX::XMVectorGetW(world.r[0]) != 0.0f || DirectX::XMVectorGetW(world.r[1]) != 0.0f ||
-			DirectX::XMVectorGetW(world.r[2]) != 0.0f || DirectX::XMVectorGetW(world.r[3]) != 1.0f)
+		const std::optional<DirectX::XMMATRIX> normal = BuildNormalTransform(world);
+		if (!normal)
 		{
 			return std::nullopt;
 		}
 
-		const float determinant = DirectX::XMVectorGetX(DirectX::XMMatrixDeterminant(world));
-		if (!std::isfinite(determinant) || determinant <= 0.0f)
-		{
-			return std::nullopt;
-		}
-
-		const DirectX::XMMATRIX normal = DirectX::XMMatrixTranspose(DirectX::XMMatrixInverse(nullptr, world));
 		const DirectX::XMMATRIX wvp = world * viewProjection;
-		if (DirectX::XMMatrixIsNaN(normal) || DirectX::XMMatrixIsInfinite(normal) ||
-			DirectX::XMMatrixIsNaN(wvp) || DirectX::XMMatrixIsInfinite(wvp))
+		if (DirectX::XMMatrixIsNaN(wvp) || DirectX::XMMatrixIsInfinite(wvp))
 		{
 			return std::nullopt;
 		}
@@ -59,7 +51,7 @@ namespace rengine
 		ObjectTransformConstants constants;
 		DirectX::XMStoreFloat4x4(&constants.worldViewProjection, wvp);
 		DirectX::XMStoreFloat4x4(&constants.world, world);
-		DirectX::XMStoreFloat4x4(&constants.normalTransform, normal);
+		DirectX::XMStoreFloat4x4(&constants.normalTransform, *normal);
 		return constants;
 	}
 }

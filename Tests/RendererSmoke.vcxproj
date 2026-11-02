@@ -39,6 +39,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="RendererSmoke.cpp" />
+    <ClCompile Include="MathChecks.cpp" />
+    <ClInclude Include="MathChecks.h" />
     <ClCompile Include="LightingChecks.cpp" />
     <ClCompile Include="ModelChecks.cpp" />
     <ClCompile Include="MultiModelChecks.cpp" />

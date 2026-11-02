@@ -72,11 +72,14 @@ Dear ImGui v1.93.0 소스·MIT 라이선스는 저장소에 포함되어 별도 
 
 진입점은 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain` → [rengine::SandboxApp::Run](Sandbox/SandboxApp.cpp)이다. [실행·소유권 계약](docs/design.md#sandbox-실행-구조)과 [프로젝트별 소스 구성](docs/project-structure.md#현재-프로젝트와-코드)을 참고한다.
 
+행렬 검증·TRS 복원은 [헤더 전용 Math 모듈](docs/project-structure.md#헤더-전용-math-모듈)에 있으며 로더와 렌더링 상수 계산에서 사용한다. 솔루션의 Math Utility 프로젝트에서 수치·벡터·행렬·Quaternion·Transform 헤더를 관리하며 별도 라이브러리를 링크하지 않는다. 기존 TRS 경계 오류는 아직 수정하지 않았다.
+
 Visual Studio 솔루션 탐색기의 Docs에서도 프로젝트 문서를 열 수 있다.
 
 | 문서 | 내용 |
 |---|---|
 | [개발 목표와 순서](docs/roadmap.md) | 개발 범위·순서와 다음 마일스톤 |
+| [Math 연산](docs/math.md) | 헤더 전용 연산 목록·실패·수치 범위·검증 |
 | [엔진 설계](docs/design.md) | 좌표계·실행·렌더링 계약과 확장 방향 |
 | [정적 모델 계약](docs/static-model.md) | Binary v2·에셋 준비·계층 지원 범위·알려진 문제 |
 | [프로젝트 구조](docs/project-structure.md) | 코드 소속·의존성·공유 자원·출력 경로 |
