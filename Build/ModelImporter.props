@@ -1,0 +1,25 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(EngineRoot)ThirdParty/ReferenceImporter;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="$(EngineRoot)Engine/Assets/MeshData.h" />
+    <ClInclude Include="$(EngineRoot)Engine/Assets/ModelLoader.h" />
+    <ClCompile Include="$(EngineRoot)Engine/Assets/ModelLoader.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/ReferenceImporter/ExportData.h" />
+    <ClInclude Include="$(EngineRoot)ThirdParty/ReferenceImporter/ExportFormatReader.h" />
+    <ClCompile Include="$(EngineRoot)ThirdParty/ReferenceImporter/ExportFormatReader.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <None Include="$(EngineRoot)Assets/Models/BrickWallCube.bin" />
+    <None Include="$(EngineRoot)Assets/Models/BrickWallCube.json" />
+    <None Include="$(EngineRoot)Assets/Models/BrickWallSphere.bin" />
+    <None Include="$(EngineRoot)Assets/Models/BrickWallSphere.json" />
+    <None Include="$(EngineRoot)Assets/Models/DamagedHelmet.bin" />
+    <None Include="$(EngineRoot)Assets/Models/DamagedHelmet.json" />
+  </ItemGroup>
+</Project>

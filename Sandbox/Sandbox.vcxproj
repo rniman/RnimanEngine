@@ -131,7 +131,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="../Build/ImGui.props" />
+    <None Include="../Build/ModelImporter.props" />
   </ItemGroup>
+  <Import Project="../Build/ModelImporter.props" />
   <Import Project="../Build/SourcePaths.props" />
   <Import Project="CubeShaders.props" />
   <Import Project="../Build/ImGui.props" />

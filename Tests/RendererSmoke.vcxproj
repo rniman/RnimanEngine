@@ -49,6 +49,7 @@
     <ClInclude Include="../Engine/Rendering/RenderData.h" />
     <ClInclude Include="../Sandbox/SandboxLighting.h" />
   </ItemGroup>
+  <Import Project="../Build/ModelImporter.props" />
   <Import Project="../Build/SourcePaths.props" />
   <Import Project="../Sandbox/CubeShaders.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

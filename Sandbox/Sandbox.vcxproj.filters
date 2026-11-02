@@ -78,4 +78,21 @@
     </ClCompile>
     <ClCompile Include="pch.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Filter Include="ThirdParty\ReferenceImporter" />
+    <Filter Include="Assets" />
+    <None Include="../Build/ModelImporter.props"><Filter>Build</Filter></None>
+    <ClCompile Include="$(EngineRoot)Engine/Assets/ModelLoader.cpp"><Filter>Engine\Assets</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)Engine/Assets/ModelLoader.h"><Filter>Engine\Assets</Filter></ClInclude>
+    <ClInclude Include="$(EngineRoot)Engine/Assets/MeshData.h"><Filter>Engine\Assets</Filter></ClInclude>
+    <ClCompile Include="$(EngineRoot)ThirdParty/ReferenceImporter/ExportFormatReader.cpp"><Filter>ThirdParty\ReferenceImporter</Filter></ClCompile>
+    <ClInclude Include="$(EngineRoot)ThirdParty/ReferenceImporter/ExportFormatReader.h"><Filter>ThirdParty\ReferenceImporter</Filter></ClInclude>
+    <ClInclude Include="$(EngineRoot)ThirdParty/ReferenceImporter/ExportData.h"><Filter>ThirdParty\ReferenceImporter</Filter></ClInclude>
+    <None Include="$(EngineRoot)Assets/Models/BrickWallCube.bin"><Filter>Assets</Filter></None>
+    <None Include="$(EngineRoot)Assets/Models/BrickWallCube.json"><Filter>Assets</Filter></None>
+    <None Include="$(EngineRoot)Assets/Models/BrickWallSphere.bin"><Filter>Assets</Filter></None>
+    <None Include="$(EngineRoot)Assets/Models/BrickWallSphere.json"><Filter>Assets</Filter></None>
+    <None Include="$(EngineRoot)Assets/Models/DamagedHelmet.bin"><Filter>Assets</Filter></None>
+    <None Include="$(EngineRoot)Assets/Models/DamagedHelmet.json"><Filter>Assets</Filter></None>
+  </ItemGroup>
 </Project>
