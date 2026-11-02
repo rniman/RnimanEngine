@@ -14,6 +14,7 @@
 
 #include <array>
 #include <cstddef>
+#include <string>
 
 namespace rengine
 {
@@ -33,10 +34,10 @@ namespace rengine
 		[[nodiscard]] int Run(int showCommand);
 
 	private:
-		struct Cube
+		struct ModelInstance
 		{
 			Transform transform;
-			// 개체 주소 대신 회전 성분을 지정하므로 Cube를 복사해도 다른 개체를 참조하지 않는다.
+			// 개체 주소 대신 회전 성분을 지정하므로 ModelInstance를 복사해도 다른 개체를 참조하지 않는다.
 			float DirectX::XMFLOAT3::* rotationAxis;
 			double rotationSpeed; // 회전 속도(radian/second)
 			bool autoRotate;
@@ -44,18 +45,25 @@ namespace rengine
 
 		// 초기 목록에서 개수를 유도한다. 선택 UI·회전·렌더링은 이 목록과 같은 크기를 사용한다.
 		static constexpr std::array INITIAL_OBJECTS = {
-			Cube{
-				Transform{ { -2.5f, 0.0f, 1.0f }, {}, { 0.65f, 0.65f, 0.65f } },
-				&DirectX::XMFLOAT3::y, 0.7, true
+			ModelInstance{
+				Transform{}, // 로딩 성공 시 파일의 Transform으로 교체한다.
+				&DirectX::XMFLOAT3::y, 0.7, false
 			},
-			Cube{
-				Transform{ { 0.0f, 1.0f, 4.0f }, {}, { 0.8f, 1.1f, 0.6f } },
+			ModelInstance{
+				Transform{ { -2.0f, 0.0f, 0.0f }, {}, { 1.25f, 1.25f, 1.25f } },
 				&DirectX::XMFLOAT3::x, 0.35, true
 			},
-			Cube{
-				Transform{ { 3.5f, -3.0f, 3.0f }, {}, { 0.75f, 0.5f, 0.75f } },
+			ModelInstance{
+				Transform{ { 2.0f, 0.0f, 0.0f }, {}, { 0.8f, 0.8f, 0.8f } },
 				&DirectX::XMFLOAT3::z, -0.7, true
 			}
+		};
+
+		struct ModelInfo
+		{
+			std::size_t vertexCount = 0;
+			std::size_t triangleCount = 0;
+			std::string materialWarning;
 		};
 
 		[[nodiscard]] bool Initialize(int showCommand);
@@ -74,8 +82,9 @@ namespace rengine
 		SandboxLighting mLighting;
 		double mPreviousAnimationTime = 0.0;
 		std::size_t mSelectedObject = 0;
+		std::array<ModelInfo, INITIAL_OBJECTS.size()> mModelInfo;
 		bool mShowDemo = false;
 		bool mInvalidEdit = false;
-		std::array<Cube, INITIAL_OBJECTS.size()> mObjects = INITIAL_OBJECTS;
+		std::array<ModelInstance, INITIAL_OBJECTS.size()> mObjects = INITIAL_OBJECTS;
 	};
 }

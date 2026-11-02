@@ -1,5 +1,7 @@
 // 별도 콘솔 테스트이므로 PCH 없이 컴파일한다.
 #include "LightingChecks.h"
+#include "ModelChecks.h"
+#include "MultiModelChecks.h"
 #include "RendererReadback.h"
 #include "SandboxCamera.h"
 
@@ -437,6 +439,11 @@ int main()
 
 	std::puts("Camera: initial position, diagonal speed, frame time and pitch checks passed");
 
+	if (!rengine::CheckJpegLoading())
+	{
+		return 1;
+	}
+
 	Microsoft::WRL::ComPtr<ID3D12Debug> debug;
 	HRESULT result = D3D12GetDebugInterface(IID_PPV_ARGS(&debug));
 	if (FAILED(result))
@@ -643,6 +650,24 @@ int main()
 			{
 				return 1;
 			}
+		}
+	}
+
+	{
+		rengine::TestWindow modelWindow;
+		if (!rengine::CheckImportedModel(modelWindow.GetHandle()))
+		{
+			return 1;
+		}
+
+		if (!rengine::CheckMultipleModels(modelWindow.GetHandle()))
+		{
+			return 1;
+		}
+
+		if (!rengine::CheckTextureAddressing(modelWindow.GetHandle()))
+		{
+			return 1;
 		}
 	}
 

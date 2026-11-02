@@ -6,6 +6,8 @@
 #include "SandboxLighting.h"
 
 #include "Assets/AssetLoader.h"
+#include "Assets/ImageData.h"
+#include "Assets/ModelLoader.h"
 #include "Math/Transform.h"
 #include "Platform/Win32Window.h"
 #include "Rendering/D3D12Renderer.h"
@@ -25,11 +27,27 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace rengine
 {
 	namespace
 	{
+		struct ModelAsset
+		{
+			const char* name;
+			const wchar_t* file;
+			const wchar_t* textureDirectory;
+			const wchar_t* textureExtension;
+		};
+
+		constexpr std::array MODEL_ASSETS = {
+			ModelAsset{ "BrickWallCube", L"BrickWallCube.bin", L"BrickWall17_MR_1K", L".png" },
+			ModelAsset{ "BrickWallSphere", L"BrickWallSphere.bin", L"BrickWall17_MR_1K", L".png" },
+			ModelAsset{ "DamagedHelmet", L"DamagedHelmet.bin", L"DamagedHelmet_textures", L".jpg" }
+		};
+
 		bool EditVector3(
 			const char* label,
 			DirectX::XMFLOAT3& vector,
@@ -84,16 +102,70 @@ namespace rengine
 		// 빌드가 계산한 EXE→저장소 루트 상대 경로를 사용하며 실행용 복사본은 만들지 않는다.
 		const std::filesystem::path assetDirectory =
 			(executableDirectoryResult.directory / RNIMAN_SOURCE_ROOT / L"Assets").lexically_normal();
-		const std::filesystem::path path = assetDirectory / L"BrickWall17_MR_1K" / L"BrickWall17_1K_BaseColor.png";
-		const ImageLoadResult loaded = LoadPngImage(path);
-		if (FAILED(loaded.result))
+		static_assert(MODEL_ASSETS.size() == INITIAL_OBJECTS.size());
+		std::array<StaticModel, MODEL_ASSETS.size()> models;
+		std::array<ImageData, MODEL_ASSETS.size()> textures;
+		std::vector<D3D12Renderer::ModelSource> sources;
+		sources.reserve(MODEL_ASSETS.size());
+		for (std::size_t index = 0; index < MODEL_ASSETS.size(); ++index)
 		{
-			wchar_t errorCode[32]{};
-			swprintf_s(errorCode, L"0x%08lX", static_cast<unsigned long>(loaded.result));
-			const std::wstring message = std::wstring(loaded.operation) + L" failed. HRESULT: " + errorCode +
-				L"\nPath: " + path.wstring();
-			OutputDebugStringW(message.c_str());
-			MessageBoxW(mWindow.GetHandle(), message.c_str(), L"Sandbox asset error", MB_OK | MB_ICONERROR);
+			const ModelAsset& asset = MODEL_ASSETS[index];
+			const std::filesystem::path modelPath = assetDirectory / L"Models" / asset.file;
+			ModelLoadResult loadedModel = LoadStaticModel(modelPath);
+			if (!loadedModel.model)
+			{
+				// Reader 진단은 ASCII API/필드 이름이며 파일 경로는 Unicode로 보존한다.
+				const std::wstring reason(loadedModel.error.begin(), loadedModel.error.end());
+				const std::wstring message = L"LoadStaticModel failed: " + reason + L"\nPath: " + modelPath.wstring();
+				OutputDebugStringW(message.c_str());
+				MessageBoxW(mWindow.GetHandle(), message.c_str(), L"Sandbox model error", MB_OK | MB_ICONERROR);
+				return false;
+			}
+
+			models[index] = std::move(*loadedModel.model);
+			ModelInfo& info = mModelInfo[index];
+			info.vertexCount = models[index].mesh.vertices.size();
+			info.triangleCount = models[index].mesh.indices.size() / 3;
+			info.materialWarning = std::move(loadedModel.warning);
+			if (!info.materialWarning.empty())
+			{
+				OutputDebugStringA((std::string(asset.name) + ": " + info.materialWarning + "\n").c_str());
+			}
+
+			const std::string& textureName = models[index].baseColorTextureRef;
+			if (textureName.empty())
+			{
+				textures[index] = { 1, 1, { 255, 255, 255, 255 } };
+			}
+			else
+			{
+				std::filesystem::path textureFile{ std::u8string(textureName.begin(), textureName.end()) };
+				// 확장자 없는 UTF-8 참조를 보존하며 폴더·형식은 이 데모에서 명시한다.
+				textureFile += asset.textureExtension;
+				const std::filesystem::path texturePath = assetDirectory / asset.textureDirectory / textureFile;
+				ImageLoadResult loadedImage = LoadImage(texturePath);
+				if (FAILED(loadedImage.result))
+				{
+					wchar_t errorCode[32]{};
+					swprintf_s(errorCode, L"0x%08lX", static_cast<unsigned long>(loadedImage.result));
+					const std::wstring message = std::wstring(loadedImage.operation) +
+						L" failed. HRESULT: " + errorCode + L"\nPath: " + texturePath.wstring();
+					OutputDebugStringW(message.c_str());
+					MessageBoxW(mWindow.GetHandle(), message.c_str(), L"Sandbox texture error", MB_OK | MB_ICONERROR);
+					return false;
+				}
+
+				textures[index] = std::move(loadedImage.image);
+			}
+
+			// 배열의 CPU 데이터는 아래 Initialize 호출이 끝날 때까지 유효하다.
+			sources.push_back({ textures[index], &models[index].mesh, models[index].baseColor,
+				models[index].wrapU, models[index].wrapV });
+		}
+
+		mObjects[0].transform = models[0].transform;
+		if (!mCamera.SetPosition({ 0.0f, 3.0f, -8.0f }))
+		{
 			return false;
 		}
 
@@ -103,7 +175,7 @@ namespace rengine
 			mWindow.GetHandle(),
 			state.width == 0 ? 1280 : state.width,
 			state.height == 0 ? 720 : state.height,
-			loaded.image))
+			sources))
 		{
 			return false;
 		}
@@ -248,13 +320,20 @@ namespace rengine
 
 	void SandboxApp::DrawObjectTools()
 	{
-		ImGui::SeparatorText("Cube");
-		const std::string selectedLabel = "Cube " + std::to_string(mSelectedObject);
+		const ModelInfo& info = mModelInfo[mSelectedObject];
+		ImGui::SeparatorText(MODEL_ASSETS[mSelectedObject].name);
+		if (!info.materialWarning.empty())
+		{
+			ImGui::TextWrapped("%s", info.materialWarning.c_str());
+		}
+		ImGui::TextDisabled("%zu vertices / %zu triangles", info.vertexCount, info.triangleCount);
+		const std::string selectedLabel =
+			"Model " + std::to_string(mSelectedObject) + " - " + MODEL_ASSETS[mSelectedObject].name;
 		if (ImGui::BeginCombo("Selected", selectedLabel.c_str()))
 		{
 			for (std::size_t index = 0; index < mObjects.size(); ++index)
 			{
-				const std::string label = "Cube " + std::to_string(index);
+				const std::string label = "Model " + std::to_string(index) + " - " + MODEL_ASSETS[index].name;
 				const bool selected = index == mSelectedObject;
 				if (ImGui::Selectable(label.c_str(), selected))
 				{
@@ -297,7 +376,7 @@ namespace rengine
 		}
 
 		ImGui::Checkbox("Auto rotate", &object.autoRotate);
-		ImGui::TextWrapped("Editing rotation pauses this cube; resume from edited angle.");
+		ImGui::TextWrapped("Model 0 starts at the exported transform. Rotation edits pause animation.");
 	}
 
 	void SandboxApp::DrawLightingTools()
@@ -355,7 +434,7 @@ namespace rengine
 				mObjects[index].transform.GetWorld(), view * projection);
 			if (!constantsResult)
 			{
-				const wchar_t* message = L"Sandbox cube transform is non-finite, singular or reflected.";
+				const wchar_t* message = L"Sandbox model transform is non-finite, singular or reflected.";
 				OutputDebugStringW(message);
 				MessageBoxW(mWindow.GetHandle(), message, L"Sandbox transform error", MB_OK | MB_ICONERROR);
 				return false;
@@ -369,6 +448,8 @@ namespace rengine
 		lighting.intensity = mLighting.GetIntensity();
 		lighting.cameraPosition = mCamera.GetPosition();
 		const D3D12Renderer::OverlayPass overlay = mGui.GetOverlayPass();
-		return mRenderer.Render(objectConstants, lighting, &overlay);
+		// 실제 오브젝트의 번호와 초기화한 모델 번호가 일치한다.
+		constexpr std::array<std::size_t, INITIAL_OBJECTS.size()> modelIndices = { 0, 1, 2 };
+		return mRenderer.Render(objectConstants, lighting, &overlay, modelIndices);
 	}
 }

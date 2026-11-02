@@ -4,6 +4,7 @@
 
 #include "Assets/AssetLoader.h"
 #include "Assets/ImageData.h"
+#include "Assets/MeshData.h"
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
@@ -14,6 +15,7 @@
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -33,12 +35,9 @@ namespace rengine
 
 	namespace
 	{
-		struct Vertex
-		{
-			float position[3];
-			float uv[2];
-			float normal[3];
-		};
+		// 정점 복사·입력 레이아웃이 같은 32바이트 position/UV/normal 배치를 사용한다.
+		static_assert(std::is_standard_layout_v<MeshVertex> && std::is_trivially_copyable_v<MeshVertex>);
+		static_assert(sizeof(MeshVertex) == 32 && offsetof(MeshVertex, uv) == 12 && offsetof(MeshVertex, normal) == 20);
 
 		// CPU 구조체와 HLSL 레지스터의 실제 배치를 함께 검증한다.
 		static_assert(std::is_trivially_copyable_v<ObjectTransformConstants> &&
@@ -82,7 +81,7 @@ namespace rengine
 		constexpr DXGI_FORMAT COLOR_VIEW_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 		constexpr DXGI_FORMAT DEPTH_BUFFER_FORMAT = DXGI_FORMAT_D32_FLOAT;
 		// 면별로 정점을 분리한다. UV는 좌상 (0, 0), 우하 (1, 1)이다.
-		constexpr Vertex CUBE_VERTICES[] = {
+		constexpr MeshVertex CUBE_VERTICES[] = {
 			{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
 			{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, -1.0f } },
 			{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f }, { 0.0f, 0.0f, -1.0f } },
@@ -110,7 +109,7 @@ namespace rengine
 		};
 
 		// 외부에서 볼 때 화면에서 시계 방향인 면을 앞면으로 사용한다.
-		constexpr std::uint16_t CUBE_INDICES[] = {
+		constexpr std::uint32_t CUBE_INDICES[] = {
 			0, 1, 2, 0, 2, 3,
 			4, 5, 6, 4, 6, 7,
 			8, 9, 10, 8, 10, 11,
@@ -155,20 +154,50 @@ namespace rengine
 		return false;
 	}
 
-	bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height, const ImageData& texture)
+	bool D3D12Renderer::Initialize(
+		HWND window,
+		UINT width,
+		UINT height,
+		const ImageData& texture,
+		const MeshData* mesh,
+		const std::array<float, 4>& baseColor)
 	{
-		if (window == nullptr || width == 0 || height == 0 || mFactory)
+		const ModelSource source{ texture, mesh, baseColor };
+		return Initialize(window, width, height, std::span<const ModelSource>(&source, 1));
+	}
+
+	bool D3D12Renderer::Initialize(HWND window, UINT width, UINT height, std::span<const ModelSource> models)
+	{
+		if (window == nullptr || width == 0 || height == 0 || mFactory ||
+			models.empty() || models.size() > D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1)
 		{
 			return CheckResult(E_INVALIDARG, L"D3D12Renderer::Initialize");
 		}
 
-		// 제한 이후의 RGBA8 크기 계산은 x64 size_t 범위에 들어간다.
-		if (texture.width == 0 || texture.height == 0 ||
-			texture.width > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
-			texture.height > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
-			texture.pixels.size() != static_cast<std::size_t>(texture.width) * texture.height * 4)
+		for (const ModelSource& source : models)
 		{
-			return CheckResult(E_INVALIDARG, L"Initialize: invalid RGBA8 texture dimensions or pixel count");
+			if (static_cast<std::uint32_t>(source.wrapU) > 2 || static_cast<std::uint32_t>(source.wrapV) > 2)
+			{
+				return CheckResult(E_INVALIDARG, L"Initialize: unsupported texture address mode");
+			}
+
+			const ImageData& texture = source.texture;
+			// 제한 이후의 RGBA8 크기 계산은 x64 size_t 범위에 들어간다.
+			if (texture.width == 0 || texture.height == 0 ||
+				texture.width > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
+				texture.height > D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION ||
+				texture.pixels.size() != static_cast<std::size_t>(texture.width) * texture.height * 4)
+			{
+				return CheckResult(E_INVALIDARG, L"Initialize: invalid RGBA8 texture dimensions or pixel count");
+			}
+
+			for (const float component : source.baseColor)
+			{
+				if (!std::isfinite(component))
+				{
+					return CheckResult(E_INVALIDARG, L"Initialize: non-finite material BaseColor");
+				}
+			}
 		}
 
 		if (!CreateDevice())
@@ -293,17 +322,47 @@ namespace rengine
 			return false;
 		}
 
-		if (!CreateCubePipeline())
+		if (!CreateMeshPipeline())
 		{
 			return false;
 		}
 
-		if (!CreateCubeGeometry())
+		D3D12_DESCRIPTOR_HEAP_DESC descriptors{};
+		descriptors.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		descriptors.NumDescriptors = static_cast<UINT>(models.size());
+		descriptors.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		if (!CheckResult(
+			mDevice->CreateDescriptorHeap(&descriptors, IID_PPV_ARGS(&mSrvHeap)),
+			L"CreateDescriptorHeap(model SRVs)"))
 		{
 			return false;
 		}
 
-		return CreateTexture(texture);
+		mSrvStride = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		mModels.resize(models.size());
+		for (std::size_t modelIndex = 0; modelIndex < models.size(); ++modelIndex)
+		{
+			const ModelSource& source = models[modelIndex];
+			GpuModel& model = mModels[modelIndex];
+			model.baseColor = source.baseColor;
+			model.wrapU = source.wrapU;
+			model.wrapV = source.wrapV;
+			const std::span<const MeshVertex> vertices = source.mesh ?
+				std::span<const MeshVertex>(source.mesh->vertices) : CUBE_VERTICES;
+			const std::span<const std::uint32_t> indices = source.mesh ?
+				std::span<const std::uint32_t>(source.mesh->indices) : CUBE_INDICES;
+			if (!CreateGeometry(vertices, indices, model))
+			{
+				return false;
+			}
+
+			if (!CreateTexture(source.texture, model, modelIndex))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	bool D3D12Renderer::CreateDevice()
@@ -388,7 +447,7 @@ namespace rengine
 		return true;
 	}
 
-	bool D3D12Renderer::CreateCubePipeline()
+	bool D3D12Renderer::CreateMeshPipeline()
 	{
 		// 작업 디렉터리와 무관하게 실행 파일과 함께 배치된 CSO를 읽는다.
 		const ExecutableDirectoryResult executableDirectoryResult = GetExecutableDirectory();
@@ -419,7 +478,7 @@ namespace rengine
 		textureRange.NumDescriptors = 1;
 		textureRange.BaseShaderRegister = 0;
 		textureRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-		D3D12_ROOT_PARAMETER parameters[3]{};
+		D3D12_ROOT_PARAMETER parameters[4]{};
 		parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		parameters[0].Descriptor.ShaderRegister = 0;
 		parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
@@ -430,22 +489,40 @@ namespace rengine
 		parameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		parameters[2].Descriptor.ShaderRegister = 1;
 		parameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		parameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		// CubePS의 b2에는 선형 RGB 3개와 축별 Wrap 조합 번호 uint 1개를 전달한다. 출력 alpha는 항상 1이다.
+		parameters[3].Constants.ShaderRegister = 2;
+		parameters[3].Constants.Num32BitValues = 4;
+		parameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 		D3D12_STATIC_SAMPLER_DESC sampler{};
-		// 단일 밉과 선형 필터를 사용하며 면 끝에서 반대편 픽셀을 섞지 않는다.
+		// 단일 밉·선형 필터를 공유하고 U/V 주소 모드는 아래 조합별로 지정한다.
 		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-		sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-		sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 		sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 		sampler.MaxAnisotropy = 1;
 		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 		sampler.MaxLOD = D3D12_FLOAT32_MAX;
-		sampler.ShaderRegister = 0;
 		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		// SM5.0에서 동적 Sampler 인덱싱에 의존하지 않도록 3x3 조합을 정적으로 등록한다.
+		constexpr std::array<D3D12_TEXTURE_ADDRESS_MODE, 3> addressModes = {
+			D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_TEXTURE_ADDRESS_MODE_MIRROR
+		};
+		std::array<D3D12_STATIC_SAMPLER_DESC, 9> samplers{};
+		for (UINT u = 0; u < 3; ++u)
+		{
+			for (UINT v = 0; v < 3; ++v)
+			{
+				D3D12_STATIC_SAMPLER_DESC& item = samplers[u * 3 + v];
+				item = sampler;
+				item.ShaderRegister = u * 3 + v;
+				item.AddressU = addressModes[u];
+				item.AddressV = addressModes[v];
+			}
+		}
 		D3D12_ROOT_SIGNATURE_DESC rootDescription{};
 		rootDescription.NumParameters = static_cast<UINT>(std::size(parameters));
 		rootDescription.pParameters = parameters;
-		rootDescription.NumStaticSamplers = 1;
-		rootDescription.pStaticSamplers = &sampler;
+		rootDescription.NumStaticSamplers = static_cast<UINT>(samplers.size());
+		rootDescription.pStaticSamplers = samplers.data();
 		rootDescription.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 		ComPtr<ID3DBlob> serializedRoot;
 		ComPtr<ID3DBlob> errors;
@@ -478,15 +555,15 @@ namespace rengine
 		constexpr D3D12_INPUT_ELEMENT_DESC inputElements[] = {
 			{
 				"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
-				0, offsetof(Vertex, position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+				0, offsetof(MeshVertex, position), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 			},
 			{
 				"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
-				0, offsetof(Vertex, uv), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+				0, offsetof(MeshVertex, uv), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 			},
 			{
 				"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT,
-				0, offsetof(Vertex, normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+				0, offsetof(MeshVertex, normal), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 			}
 		};
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline{};
@@ -552,19 +629,8 @@ namespace rengine
 		return true;
 	}
 
-	bool D3D12Renderer::CreateTexture(const ImageData& image)
+	bool D3D12Renderer::CreateTexture(const ImageData& image, GpuModel& model, std::size_t modelIndex)
 	{
-		D3D12_DESCRIPTOR_HEAP_DESC descriptors{};
-		descriptors.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		descriptors.NumDescriptors = 1;
-		descriptors.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		if (!CheckResult(
-			mDevice->CreateDescriptorHeap(&descriptors, IID_PPV_ARGS(&mSrvHeap)),
-			L"CreateDescriptorHeap(texture SRV)"))
-		{
-			return false;
-		}
-
 		D3D12_HEAP_PROPERTIES heap{};
 		heap.Type = D3D12_HEAP_TYPE_DEFAULT;
 		D3D12_RESOURCE_DESC texture{};
@@ -582,7 +648,7 @@ namespace rengine
 				&texture,
 				D3D12_RESOURCE_STATE_COPY_DEST,
 				nullptr,
-				IID_PPV_ARGS(&mTexture)),
+				IID_PPV_ARGS(&model.texture)),
 			L"CreateCommittedResource(texture)"))
 		{
 			return false;
@@ -591,14 +657,14 @@ namespace rengine
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{};
 		UINT64 uploadBytes = 0;
 		mDevice->GetCopyableFootprints(&texture, 0, 1, 0, &footprint, nullptr, nullptr, &uploadBytes);
-		if (!CreateUploadBuffer(uploadBytes, mTextureUpload))
+		if (!CreateUploadBuffer(uploadBytes, model.textureUpload))
 		{
 			return false;
 		}
 
 		void* mapped = nullptr;
 		const D3D12_RANGE readRange{ 0, 0 };
-		if (!CheckResult(mTextureUpload->Map(0, &readRange, &mapped), L"TextureUpload::Map"))
+		if (!CheckResult(model.textureUpload->Map(0, &readRange, &mapped), L"TextureUpload::Map"))
 		{
 			return false;
 		}
@@ -616,7 +682,7 @@ namespace rengine
 		}
 
 		const D3D12_RANGE writtenRange{ 0, static_cast<SIZE_T>(uploadBytes) };
-		mTextureUpload->Unmap(0, &writtenRange);
+		model.textureUpload->Unmap(0, &writtenRange);
 
 		if (!CheckResult(mFrames[0].commandAllocator->Reset(), L"CommandAllocator::Reset(texture upload)"))
 		{
@@ -631,17 +697,17 @@ namespace rengine
 		}
 
 		D3D12_TEXTURE_COPY_LOCATION destination{};
-		destination.pResource = mTexture.Get();
+		destination.pResource = model.texture.Get();
 		destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 		D3D12_TEXTURE_COPY_LOCATION source{};
-		source.pResource = mTextureUpload.Get();
+		source.pResource = model.textureUpload.Get();
 		source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 		source.PlacedFootprint = footprint;
 		mCommandList->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
 
 		D3D12_RESOURCE_BARRIER barrier{};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrier.Transition.pResource = mTexture.Get();
+		barrier.Transition.pResource = model.texture.Get();
 		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
 		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
@@ -660,54 +726,101 @@ namespace rengine
 			return false;
 		}
 
-		mTextureUpload.Reset();
+		model.textureUpload.Reset();
 		D3D12_SHADER_RESOURCE_VIEW_DESC view{};
 		view.Format = COLOR_VIEW_FORMAT;
 		view.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		view.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		view.Texture2D.MipLevels = 1;
-		mDevice->CreateShaderResourceView(mTexture.Get(), &view, mSrvHeap->GetCPUDescriptorHandleForHeapStart());
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = mSrvHeap->GetCPUDescriptorHandleForHeapStart();
+		handle.ptr += modelIndex * mSrvStride;
+		mDevice->CreateShaderResourceView(model.texture.Get(), &view, handle);
 		return true;
 	}
 
-	bool D3D12Renderer::CreateCubeGeometry()
+	bool D3D12Renderer::CreateGeometry(
+		std::span<const MeshVertex> vertices,
+		std::span<const std::uint32_t> indices,
+		GpuModel& model)
 	{
-		// 작은 고정 메시의 정점·인덱스만 Upload Heap에서 직접 읽고 이후 수정하지 않는다.
-		if (!CreateUploadBuffer(sizeof(CUBE_VERTICES), mVertexBuffer))
+		// 작은 정적 데모 메시를 Upload Heap에서 직접 읽는다. 이후 수정 없이 렌더러가 소유한다.
+		if (vertices.empty() || indices.empty() || indices.size() % 3 != 0 ||
+			vertices.size() > UINT_MAX / sizeof(MeshVertex) || indices.size() > UINT_MAX / sizeof(std::uint32_t))
+		{
+			return CheckResult(E_INVALIDARG, L"CreateGeometry: invalid or oversized mesh");
+		}
+
+		for (const MeshVertex& vertex : vertices)
+		{
+			for (float value : vertex.position)
+			{
+				if (!std::isfinite(value))
+				{
+					return CheckResult(E_INVALIDARG, L"CreateGeometry: non-finite position");
+				}
+			}
+
+			for (float value : vertex.uv)
+			{
+				if (!std::isfinite(value))
+				{
+					return CheckResult(E_INVALIDARG, L"CreateGeometry: non-finite UV");
+				}
+			}
+
+			const double normalLength = static_cast<double>(vertex.normal[0]) * vertex.normal[0] +
+				static_cast<double>(vertex.normal[1]) * vertex.normal[1] +
+				static_cast<double>(vertex.normal[2]) * vertex.normal[2];
+			if (!std::isfinite(normalLength) || std::abs(normalLength - 1.0) > 1e-3)
+			{
+				return CheckResult(E_INVALIDARG, L"CreateGeometry: normal must be a unit vector");
+			}
+		}
+
+		for (std::uint32_t index : indices)
+		{
+			if (index >= vertices.size())
+			{
+				return CheckResult(E_INVALIDARG, L"CreateGeometry: index out of bounds");
+			}
+		}
+
+		if (!CreateUploadBuffer(vertices.size_bytes(), model.vertexBuffer))
 		{
 			return false;
 		}
 
-		if (!CreateUploadBuffer(sizeof(CUBE_INDICES), mIndexBuffer))
+		if (!CreateUploadBuffer(indices.size_bytes(), model.indexBuffer))
 		{
 			return false;
 		}
 
 		void* mapped = nullptr;
 		const D3D12_RANGE readRange{ 0, 0 };
-		if (!CheckResult(mVertexBuffer->Map(0, &readRange, &mapped), L"VertexBuffer::Map"))
+		if (!CheckResult(model.vertexBuffer->Map(0, &readRange, &mapped), L"VertexBuffer::Map"))
 		{
 			return false;
 		}
 
-		std::memcpy(mapped, CUBE_VERTICES, sizeof(CUBE_VERTICES));
-		const D3D12_RANGE vertexWrittenRange{ 0, sizeof(CUBE_VERTICES) };
-		mVertexBuffer->Unmap(0, &vertexWrittenRange);
-		mVertexBufferView.BufferLocation = mVertexBuffer->GetGPUVirtualAddress();
-		mVertexBufferView.SizeInBytes = sizeof(CUBE_VERTICES);
-		mVertexBufferView.StrideInBytes = sizeof(Vertex);
+		std::memcpy(mapped, vertices.data(), vertices.size_bytes());
+		const D3D12_RANGE vertexWrittenRange{ 0, vertices.size_bytes() };
+		model.vertexBuffer->Unmap(0, &vertexWrittenRange);
+		model.vertexBufferView.BufferLocation = model.vertexBuffer->GetGPUVirtualAddress();
+		model.vertexBufferView.SizeInBytes = static_cast<UINT>(vertices.size_bytes());
+		model.vertexBufferView.StrideInBytes = sizeof(MeshVertex);
 
-		if (!CheckResult(mIndexBuffer->Map(0, &readRange, &mapped), L"IndexBuffer::Map"))
+		if (!CheckResult(model.indexBuffer->Map(0, &readRange, &mapped), L"IndexBuffer::Map"))
 		{
 			return false;
 		}
 
-		std::memcpy(mapped, CUBE_INDICES, sizeof(CUBE_INDICES));
-		const D3D12_RANGE indexWrittenRange{ 0, sizeof(CUBE_INDICES) };
-		mIndexBuffer->Unmap(0, &indexWrittenRange);
-		mIndexBufferView.BufferLocation = mIndexBuffer->GetGPUVirtualAddress();
-		mIndexBufferView.SizeInBytes = sizeof(CUBE_INDICES);
-		mIndexBufferView.Format = DXGI_FORMAT_R16_UINT;
+		std::memcpy(mapped, indices.data(), indices.size_bytes());
+		const D3D12_RANGE indexWrittenRange{ 0, indices.size_bytes() };
+		model.indexBuffer->Unmap(0, &indexWrittenRange);
+		model.indexBufferView.BufferLocation = model.indexBuffer->GetGPUVirtualAddress();
+		model.indexBufferView.SizeInBytes = static_cast<UINT>(indices.size_bytes());
+		model.indexBufferView.Format = DXGI_FORMAT_R32_UINT;
+		model.indexCount = static_cast<UINT>(indices.size());
 		return true;
 	}
 
@@ -774,9 +887,10 @@ namespace rengine
 	bool D3D12Renderer::Render(
 		std::span<const ObjectTransformConstants> objectConstants,
 		const FrameLighting& lighting,
-		const OverlayPass* overlay)
+		const OverlayPass* overlay,
+		std::span<const std::size_t> modelIndices)
 	{
-		return RenderInternal(objectConstants, lighting, true, overlay);
+		return RenderInternal(objectConstants, lighting, true, overlay, modelIndices);
 	}
 
 	bool D3D12Renderer::UploadFrameConstants(
@@ -821,11 +935,25 @@ namespace rengine
 		std::span<const ObjectTransformConstants> objectConstants,
 		const FrameLighting& lighting,
 		bool present,
-		const OverlayPass* overlay)
+		const OverlayPass* overlay,
+		std::span<const std::size_t> modelIndices)
 	{
 		if (overlay != nullptr && overlay->record == nullptr)
 		{
 			return CheckResult(E_INVALIDARG, L"Render: missing overlay recorder");
+		}
+
+		if (!modelIndices.empty() && modelIndices.size() != objectConstants.size())
+		{
+			return CheckResult(E_INVALIDARG, L"Render: model index count differs from instance count");
+		}
+
+		for (const std::size_t modelIndex : modelIndices)
+		{
+			if (modelIndex >= mModels.size())
+			{
+				return CheckResult(E_INVALIDARG, L"Render: model index out of bounds");
+			}
 		}
 
 		static_assert(sizeof(ObjectTransformConstants) <= CONSTANT_STRIDE && sizeof(FrameLighting) <= CONSTANT_STRIDE);
@@ -890,20 +1018,27 @@ namespace rengine
 		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 		ID3D12DescriptorHeap* heaps[] = { mSrvHeap.Get() };
 		mCommandList->SetDescriptorHeaps(1, heaps);
-		mCommandList->SetGraphicsRootDescriptorTable(1, mSrvHeap->GetGPUDescriptorHandleForHeapStart());
 		mCommandList->SetGraphicsRootConstantBufferView(2, frame.constantBuffer->GetGPUVirtualAddress());
 		mCommandList->RSSetViewports(1, &viewport);
 		mCommandList->RSSetScissorRects(1, &scissor);
 		mCommandList->OMSetRenderTargets(1, &renderTargetHandle, FALSE, &depthHandle);
 		mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		mCommandList->IASetVertexBuffers(0, 1, &mVertexBufferView);
-		mCommandList->IASetIndexBuffer(&mIndexBufferView);
 		for (std::size_t objectIndex = 0; objectIndex < objectConstants.size(); ++objectIndex)
 		{
+			const std::size_t modelIndex = modelIndices.empty() ? 0 : modelIndices[objectIndex];
+			const GpuModel& model = mModels[modelIndex];
+			D3D12_GPU_DESCRIPTOR_HANDLE texture = mSrvHeap->GetGPUDescriptorHandleForHeapStart();
+			texture.ptr += modelIndex * mSrvStride;
+			mCommandList->SetGraphicsRootDescriptorTable(1, texture);
+			mCommandList->SetGraphicsRoot32BitConstants(3, 3, model.baseColor.data(), 0);
+			const UINT samplerIndex = static_cast<UINT>(model.wrapU) * 3u + static_cast<UINT>(model.wrapV);
+			mCommandList->SetGraphicsRoot32BitConstant(3, samplerIndex, 3);
+			mCommandList->IASetVertexBuffers(0, 1, &model.vertexBufferView);
+			mCommandList->IASetIndexBuffer(&model.indexBufferView);
 			mCommandList->SetGraphicsRootConstantBufferView(
 				0,
 				frame.constantBuffer->GetGPUVirtualAddress() + (objectIndex + 1) * CONSTANT_STRIDE);
-			mCommandList->DrawIndexedInstanced(static_cast<UINT>(std::size(CUBE_INDICES)), 1, 0, 0, 0);
+			mCommandList->DrawIndexedInstanced(model.indexCount, 1, 0, 0, 0);
 		}
 
 		// 마지막 패스는 렌더 상태를 바꿔도 된다. 포인터는 호출 중에만 대여한다.

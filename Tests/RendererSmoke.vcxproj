@@ -40,6 +40,10 @@
   <ItemGroup>
     <ClCompile Include="RendererSmoke.cpp" />
     <ClCompile Include="LightingChecks.cpp" />
+    <ClCompile Include="ModelChecks.cpp" />
+    <ClCompile Include="MultiModelChecks.cpp" />
+    <ClInclude Include="MultiModelChecks.h" />
+    <ClInclude Include="ModelChecks.h" />
     <ClInclude Include="LightingChecks.h" />
     <ClInclude Include="RendererReadback.h" />
     <ClCompile Include="../Engine/Rendering/D3D12Renderer.cpp" />
@@ -48,6 +52,9 @@
     <ClInclude Include="../Engine/Assets/ImageData.h" />
     <ClInclude Include="../Engine/Rendering/RenderData.h" />
     <ClInclude Include="../Sandbox/SandboxLighting.h" />
+    <None Include="Assets/ColorTest.jpg" />
+    <None Include="Assets/ModelFixture/CubeV2.bin" />
+    <None Include="Assets/ModelFixture/README.md" />
   </ItemGroup>
   <Import Project="../Build/ModelImporter.props" />
   <Import Project="../Build/SourcePaths.props" />

@@ -3,6 +3,7 @@
 #include "Rendering/RenderData.h"
 
 #include "Assets/ImageData.h"
+#include "Assets/MeshData.h"
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
@@ -11,15 +12,29 @@
 #include <wrl/client.h>
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <span>
+#include <vector>
 
 namespace rengine
 {
-	/// @brief UI 스레드에서 사용하는 텍스처 큐브 렌더러. 창은 앱이 소유한다.
+	/// @brief UI 스레드에서 단일 재질 정적 모델들을 그리는 Phong 렌더러. 창은 앱이 소유한다.
 	/// @note Initialize는 한 번만 호출한다. 실패 후에는 재사용하지 않고 파괴한다.
 	class D3D12Renderer
 	{
 	public:
+		/// @brief 초기화 호출 동안만 빌리는 CPU 모델 입력. texture와 mesh의 참조를 저장하지 않는다.
+		struct ModelSource
+		{
+			const ImageData& texture;
+			// nullptr는 회귀 기준 큐브를 뜻한다. BaseColor는 유한한 선형 RGBA이며 출력 alpha는 1이다.
+			const MeshData* mesh = nullptr;
+			std::array<float, 4> baseColor{ 1, 1, 1, 1 };
+			TextureWrapMode wrapU = TextureWrapMode::ClampToEdge;
+			TextureWrapMode wrapV = TextureWrapMode::ClampToEdge;
+		};
+
 		/// @brief 개발 UI 어댑터만 사용하는 비소유 GPU 문맥. 장면 데이터에는 전달하지 않는다.
 		/// @note GetOverlayContext는 Initialize 성공 후 사용한다. 포인터의 소유자는 렌더러다.
 		struct OverlayContext
@@ -52,18 +67,34 @@ namespace rengine
 		/// @return 실패 시 false. API와 HRESULT를 보고하며 부분 자원은 소멸 시 정리한다.
 		/// @param texture sRGB BaseColor RGBA8. 호출 중 복사하며 참조를 저장하지 않는다.
 		/// @note 이미지 크기는 각 축 1~16384, pixels는 width * height * 4바이트여야 한다.
-		[[nodiscard]] bool Initialize(HWND window, UINT width, UINT height, const ImageData& texture);
+		/// @param mesh nullptr이면 회귀 기준 큐브를 사용한다. 지정하면 호출 중 복사하며 참조를 저장하지 않는다.
+		/// @param baseColor 유한한 선형 RGBA 배율. 호출 중 복사하며 alpha는 불투명 출력에서 사용하지 않는다.
+		/// @note 메시·재질·텍스처는 초기화 후 고정이며 모든 인스턴스가 공유한다.
+		[[nodiscard]] bool Initialize(
+			HWND window,
+			UINT width,
+			UINT height,
+			const ImageData& texture,
+			const MeshData* mesh = nullptr,
+			const std::array<float, 4>& baseColor = { 1, 1, 1, 1 });
+
+		/// @brief 하나 이상의 모델을 복사해 초기화한다. 배열 순서가 렌더러 내 모델 번호가 된다.
+		/// @note 메시·텍스처·재질은 종료까지 고정한다. window·크기·오류 계약은 단일 모델 초기화와 같다.
+		[[nodiscard]] bool Initialize(HWND window, UINT width, UINT height, std::span<const ModelSource> models);
 
 		/// @brief 초기화 성공 후 호출한다. 사용할 프레임 자원이 실행 중일 때만 재사용을 기다린다.
-		/// @param objectConstants BuildObjectTransformConstants로 계산한 큐브별 변환 상수. 호출 중 복사하며 참조를 저장하지 않는다.
+		/// @param objectConstants BuildObjectTransformConstants로 계산한 메시 인스턴스별 변환 상수. 호출 중 복사하며 참조를 저장하지 않는다.
 		/// @param lighting 유한한 프레임 값. direction은 단위 벡터, intensity는 0~2다.
 		/// @note color·ambientStrength·specularStrength는 0~1, shininess는 1~256이다.
-		/// @note 빈 목록은 큐브를 생략하고 clear·선택 overlay·Present한다. 큐브는 메시·파이프라인을 공유한다.
+		/// @note 빈 목록은 메시를 생략하고 clear·선택 overlay·Present한다. 같은 모델 번호는 메시·재질을 공유하며 모든 모델이 파이프라인을 공유한다.
 		/// @param overlay nullptr이면 UI 없이 그린다. 슬롯 Fence 대기 후 마지막 패스로 호출하며 보관하지 않는다.
+		/// @param modelIndices 비어 있으면 모든 인스턴스가 모델 0을 사용한다. 지정 시 변환 상수와 같은 개수이며
+		/// 각 값은 Initialize의 모델 배열 범위 안이어야 한다. 호출 중에만 읽고 보관하지 않는다.
 		[[nodiscard]] bool Render(
 			std::span<const ObjectTransformConstants> objectConstants,
 			const FrameLighting& lighting,
-			const OverlayPass* overlay = nullptr);
+			const OverlayPass* overlay = nullptr,
+			std::span<const std::size_t> modelIndices = {});
 
 		/// @brief Initialize 성공 후 UI 어댑터에만 대여한다. GPU 문맥은 렌더러보다 먼저 사용을 끝낸다.
 		OverlayContext GetOverlayContext() const;
@@ -81,7 +112,23 @@ namespace rengine
 			std::span<const ObjectTransformConstants> objectConstants,
 			const FrameLighting& lighting,
 			bool present,
-			const OverlayPass* overlay = nullptr);
+			const OverlayPass* overlay = nullptr,
+			std::span<const std::size_t> modelIndices = {});
+
+		struct GpuModel
+		{
+			Microsoft::WRL::ComPtr<ID3D12Resource> vertexBuffer;
+			D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
+			Microsoft::WRL::ComPtr<ID3D12Resource> indexBuffer;
+			D3D12_INDEX_BUFFER_VIEW indexBufferView{};
+			UINT indexCount = 0;
+			std::array<float, 4> baseColor{ 1, 1, 1, 1 };
+			TextureWrapMode wrapU = TextureWrapMode::ClampToEdge;
+			TextureWrapMode wrapV = TextureWrapMode::ClampToEdge;
+			Microsoft::WRL::ComPtr<ID3D12Resource> texture;
+			// 업로드 완료 확인 실패 시에도 소멸자의 GPU 완료 시도까지 유지한다.
+			Microsoft::WRL::ComPtr<ID3D12Resource> textureUpload;
+		};
 
 		struct FrameResources
 		{
@@ -94,9 +141,13 @@ namespace rengine
 		// Debug 레이어·DXGI Factory와 하드웨어 장치를 생성한다. WARP로 대체하지 않는다.
 		[[nodiscard]] bool CreateDevice();
 		[[nodiscard]] bool CreateBackBuffers();
-		[[nodiscard]] bool CreateCubePipeline();
-		[[nodiscard]] bool CreateCubeGeometry();
-		[[nodiscard]] bool CreateTexture(const ImageData& image);
+		[[nodiscard]] bool CreateMeshPipeline();
+		// 입력을 검증한 뒤 렌더러 소유 버퍼로 복사한다. 실패 시 Initialize를 중단하고 파괴한다.
+		[[nodiscard]] bool CreateGeometry(
+			std::span<const MeshVertex> vertices,
+			std::span<const std::uint32_t> indices,
+			GpuModel& model);
+		[[nodiscard]] bool CreateTexture(const ImageData& image, GpuModel& model, std::size_t modelIndex);
 		[[nodiscard]] bool CreateDepthBuffer();
 
 		// 호출자는 조명·크기 검증과 슬롯 Fence 대기를 끝낸다. 실패 시 해당 프레임을 제출하지 않는다.
@@ -133,15 +184,10 @@ namespace rengine
 
 		Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature;
 		Microsoft::WRL::ComPtr<ID3D12PipelineState> mPipelineState;
-		Microsoft::WRL::ComPtr<ID3D12Resource> mVertexBuffer;
-		D3D12_VERTEX_BUFFER_VIEW mVertexBufferView{};
-		Microsoft::WRL::ComPtr<ID3D12Resource> mIndexBuffer;
-		D3D12_INDEX_BUFFER_VIEW mIndexBufferView{};
-
+		// 초기화한 모델과 SRV를 같은 번호로 참조하고 GPU 완료 후 함께 정리한다.
+		std::vector<GpuModel> mModels;
 		Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvHeap;
-		Microsoft::WRL::ComPtr<ID3D12Resource> mTexture;
-		// GPU 완료 확인 실패 시에도 소멸자의 완료 시도까지 업로드 메모리를 유지한다.
-		Microsoft::WRL::ComPtr<ID3D12Resource> mTextureUpload;
+		UINT mSrvStride = 0;
 
 		Microsoft::WRL::ComPtr<ID3D12Fence> mFence;
 		HANDLE mFenceEvent = nullptr;

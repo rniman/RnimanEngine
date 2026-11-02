@@ -47,14 +47,16 @@ namespace rengine
 		/// @param pixels 성공 시 픽셀로 교체한다. 실패 시에도 내용이나 크기가 바뀔 수 있다.
 		/// @return 성공 시 true. 실패 시 false를 반환하며 테스트를 종료해야 한다.
 		/// @param overlay 선택 마지막 패스. 이 Capture에서도 한 번 기록하므로 유효한 그리기 데이터가 필요하다.
+		/// @param modelIndices Render와 같은 모델 번호 목록. 비어 있으면 모든 변환은 모델 0을 사용한다.
 		[[nodiscard]] bool Capture(
 			std::span<const ObjectTransformConstants> objectConstants,
 			const FrameLighting& lighting,
 			std::vector<std::uint32_t>& pixels,
-			const D3D12Renderer::OverlayPass* overlay = nullptr)
+			const D3D12Renderer::OverlayPass* overlay = nullptr,
+			std::span<const std::size_t> modelIndices = {})
 		{
 			const UINT index = mRenderer.mSwapChain->GetCurrentBackBufferIndex();
-			if (!mRenderer.RenderInternal(objectConstants, lighting, false, overlay))
+			if (!mRenderer.RenderInternal(objectConstants, lighting, false, overlay, modelIndices))
 			{
 				return false;
 			}
