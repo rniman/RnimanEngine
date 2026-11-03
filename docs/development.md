@@ -65,35 +65,37 @@ TextureWrapMode를 CPU 이미지 계약에 두고 BaseColor 바인딩의 U/V를 
 
 ## 검증 방법
 
-공통 코드·API·경로를 바꾸면 Sandbox와 영향받는 Smoke를 x64 Debug·Release로 빌드·실행한다. 헤더는 PCH·강제 include 없이 독립 컴파일하고, 파일 재배치 시 프로젝트 입력·include·필터·솔루션 표시를 확인한다. 행렬·셰이더 경계 변경 시 패킹과 GPU 픽셀 검증을 다시 수행한다.
+변경한 기능과 영향받는 대상만 검증한다. 평소에는 작업 중인 구성(기본 Debug)으로 빌드·실행하고, 공통 렌더링 변경·구성별 동작 변경·마일스톤에서는 영향받는 대상의 Debug·Release를 검증한다. 공통 코드 변경 시 대표 데모 Sandbox도 실행한다. 문서만 바꾸면 내용·링크를 확인하며, 실제 테스트 파일을 재배치하면 프로젝트 입력·include·필터와 영향받는 타깃 빌드를 확인한다. 솔루션 표시만 바꾸면 프로젝트 등록과 경로를 확인한다.
 
-빌드·실행·시각 확인을 구분해 결과와 미수행 이유를 기록한다. 성능은 측정한 범위만 보고하며, 문서만 수정하면 내용·링크를 확인한다.
+헤더 의존성 변경은 PCH·강제 include 없는 독립 컴파일, 행렬·셰이더 경계 변경은 GPU 픽셀 검증을 포함한다. 빌드·실행·수동 화면·성능 확인을 구분하고 수행하지 못한 범위와 이유를 남긴다.
 
 ### 자동 검증
 
-솔루션 빌드는 테스트를 실행하지 않는다. 저장소 루트의 Developer PowerShell에서 각각 빌드·실행하고 종료 코드·출력을 확인한다.
+솔루션 빌드는 테스트를 실행하지 않는다. 새 Smoke 프로젝트 추가는 보류하고 기존 프로젝트에 필요한 회귀 검사만 추가한다. Tests의 코드·프로젝트·고정 fixture는 Git에 유지한다. UI 배치·조작감은 수동 확인을 기본으로 하며, 실제 결함에 대한 회귀 필요가 있을 때 자동 검사를 보강한다.
+
+저장소 루트의 Developer PowerShell에서 영향받는 프로젝트를 빌드하고 실행 종료 코드를 확인한다.
 
 ```powershell
 MSBuild.exe Tests/RendererSmoke.vcxproj -nologo -t:Build -p:Configuration=Debug -p:Platform=x64
 ./bin/RendererSmoke/Debug/RendererSmoke.exe
-MSBuild.exe Tests/RendererSmoke.vcxproj -nologo -t:Build -p:Configuration=Release -p:Platform=x64
-./bin/RendererSmoke/Release/RendererSmoke.exe
-MSBuild.exe Tests/WindowSmoke.vcxproj -nologo -t:Build -p:Configuration=Debug -p:Platform=x64
-./bin/WindowSmoke/Debug/WindowSmoke.exe
-MSBuild.exe Tests/WindowSmoke.vcxproj -nologo -t:Build -p:Configuration=Release -p:Platform=x64
-./bin/WindowSmoke/Release/WindowSmoke.exe
-MSBuild.exe Tests/ImGuiSmoke.vcxproj -nologo -t:Build -p:Configuration=Debug -p:Platform=x64
-./bin/ImGuiSmoke/Debug/ImGuiSmoke.exe
-MSBuild.exe Tests/ImGuiSmoke.vcxproj -nologo -t:Build -p:Configuration=Release -p:Platform=x64
-./bin/ImGuiSmoke/Release/ImGuiSmoke.exe
+# Math·CPU 로더 변경: GPU 초기화 없이 회귀 검사
+./bin/RendererSmoke/Debug/RendererSmoke.exe --cpu
+# 렌더링·셰이더·모델 통합 변경 또는 마일스톤: 기존 전체 검사
+./bin/RendererSmoke/Debug/RendererSmoke.exe --full
 ```
 
-| 대상 | 검사 범위 | 실행 조건 |
+Release 검증이 필요하면 빌드의 Configuration과 실행 경로를 모두 Release로 바꾼다. `--help`는 실행 범위를 표시한다. 옵션은 하나만 허용하며 잘못된 옵션은 종료 코드 2, 검사 실패는 1이다. 선택하지 않은 범위는 통과한 것으로 보고하지 않는다. `--full`의 에셋 누락은 실패이며 자동으로 건너뛰지 않는다.
+
+| 대상 | 실행 시점·검사 범위 | 실행 조건 |
 |---|---|---|
-| [RendererSmoke](../Tests/RendererSmoke.cpp) | [MathChecks](math.md#mathchecks-검증)의 CPU 연산·경계 검사, PNG/JPEG·다중 모델 선택·UV/sRGB/alpha·Phong·법선·Transform/카메라 수학, 가림·리사이즈·동기화·정리 | 두 구성 모두 D3D12 FL11_0 하드웨어·Graphics Tools·Cube CSO 필요. 저장소의 Tests/Assets/TextureTest.png·ColorTest.jpg와 세 기준 모델 bin 사용, 외부 텍스처 불필요 |
-| [WindowSmoke](../Tests/WindowSmoke.cpp) | 키·마우스 소비, 캡처/포커스/모달 초기화, 최소화·리사이즈·종료·창 수명 | Win32 환경. D3D12·Graphics Tools·CSO 불필요 |
-| [ImGuiSmoke](../Tests/ImGuiSmoke.cpp) | ImGui 초기화·UI 픽셀·폰트 크기 변경·리사이즈·소멸·D3D12 진단 | 두 구성 모두 FL11_0 하드웨어·Graphics Tools·Cube CSO 필요. 외부 PNG 불필요 |
-| Sandbox | 실제 화면·장치 입력·창 조작의 통합 흐름 | 세 모델 bin·벽돌 PNG·Helmet BaseColor JPEG·CSO·D3D12 하드웨어 필요. Graphics Tools는 Debug에 필수. WARP 대체 없음 |
+| [RendererSmoke](../Tests/RendererSmoke.cpp) 기본 | CPU 회귀 + 초기화·10프레임·2회 리사이즈 요청·대기·재개·소멸·D3D12 진단 | 저장소 PNG·JPEG·고정 모델 fixture, FL11_0 하드웨어·Graphics Tools·Cube CSO. 실제 모델 3개 불필요 |
+| RendererSmoke `--cpu` | Math·Transform·카메라·조명 데이터·이미지 디코딩·고정 모델 TRS/손상·이전 포맷 거부 회귀 | 저장소 fixture·Win32/WIC. GPU·Graphics Tools·CSO 실행 의존성 없음. 기존 GPU 소스의 빌드·링크는 유지 |
+| RendererSmoke `--full` | 기본 CPU 검사 + UV/sRGB/alpha·Phong·법선·가림·모델·9개 Wrap·136프레임·8회 리사이즈 요청 | 기본 실행 조건 + 별도 준비한 세 기준 모델 bin. 외부 BaseColor 텍스처 불필요 |
+| [WindowSmoke](../Tests/WindowSmoke.cpp) | Win32 창·입력 변경 시 키·마우스·포커스·최소화·종료 회귀 | Win32. D3D12·Graphics Tools·CSO 불필요 |
+| [ImGuiSmoke](../Tests/ImGuiSmoke.cpp) | ImGui 연결·입력 캡처·descriptor·렌더링 연동 변경 시 기존 UI 픽셀·폰트·리사이즈·소멸 검사 | FL11_0 하드웨어·Graphics Tools·Cube CSO, 메모리 텍스처 |
+| Sandbox | 공통 코드 변경의 대표 흐름과 UI 변경의 실제 조작·화면 확인 | 세 모델 bin·BaseColor 이미지·CSO·D3D12 하드웨어. Graphics Tools는 Debug 필수 |
+
+WindowSmoke·ImGuiSmoke는 각각 `Tests/WindowSmoke.vcxproj`·`Tests/ImGuiSmoke.vcxproj`를 같은 구성으로 빌드하고 `bin/<프로젝트>/<구성>/<프로젝트>.exe`를 실행한다. 두 테스트의 기존 검사 범위는 유지한다.
 
 ### GPU 픽셀 검증
 
@@ -106,6 +108,20 @@ MSBuild.exe Tests/ImGuiSmoke.vcxproj -nologo -t:Build -p:Configuration=Release -
 ## 검증 기록
 
 기록은 수행 당시의 코드와 환경에 대한 결과다. 빌드·자동 실행·수동 화면 확인을 구분하며, 이후 변경이나 문서 정리가 과거 결과를 재검증한 것은 아니다. `obj/`의 로그·임시 검사는 Git 제외 산출물이므로 다른 환경에 없을 수 있다.
+
+### Smoke 솔루션 표시 정리 (2026-11-03)
+
+사용자 요청으로 세 Smoke 프로젝트를 솔루션의 `Smoke` 폴더에 묶었다. 실제 `Tests/` 경로와 다른 표시 이름은 검사 역할을 드러내기 위한 선택이며 프로젝트 경로·ID·빌드 설정은 유지했다. 공개 홈과 이번 대화에서 확인한 프로젝트 구조의 솔루션 폴더 기준을 적용했다. XML 파싱·전체 프로젝트 속성의 변경 전후 일치·등록 경로 존재·공백 검사를 확인했다. 표시만 변경하여 빌드·실행을 반복하지 않았고 Visual Studio 화면은 확인하지 않았다.
+
+### Smoke 실행 범위 정리 (2026-11-03)
+
+사용자 선택으로 새 테스트 프로젝트 추가를 보류하고 기존 RendererSmoke에 기본·`--cpu`·`--full` 실행 범위를 적용했다. `main`의 옵션 판정 → 기존 CPU 검사·CheckModelRegression → 선택한 GPU 검사 → 소멸 후 D3D12 진단 순서다. 고정 fixture 검사를 CheckImportedModel에서 분리해 실제 모델 없이 CPU 회귀를 실행한다. 정밀 검사는 `--full`에 보존하고 Legacy 포맷 거부는 CPU 회귀에 포함했다. 이전 무인자 실행과 같은 전체 범위가 필요하면 이제 `--full`을 지정해야 한다.
+
+공개 홈·baseline·프로젝트 구조와 함수 규칙을 이번 대화에서 확인하고 작업 시작 시 홈·함수 문서를 다시 조회했다. 웹 도구·샌드박스 DNS 실패 후 샌드박스 밖 curl로 공개 본문에 접근했다. 직접 include·기존 RAII·실패 전달·nodiscard를 변경 범위에 적용했다. 실행 빈도와 범위는 사용자 합의에 따른 프로젝트 운영 기준이며 위키의 품질 초안을 공통 채택한 것이 아니다. 프로젝트 분리·폴더 재배치·범용 실행기는 추가하지 않았다. 공유 실행기가 필요해지는지는 독립 실행 대상이 늘어날 때 재검토한다.
+
+Debug RendererSmoke 빌드, 기본(10프레임·2회 리사이즈 요청)·CPU·전체(136프레임·8회 리사이즈 요청) 실행이 종료 코드 0으로 통과했다. GPU 두 경로의 D3D12 오류·경고는 0이었다. 도움말 종료 코드 0, 알 수 없는 옵션·복수 옵션 종료 코드 2를 확인했다. diff 공백과 변경 문서의 로컬 파일 링크를 확인했다. 테스트 실행 분기만 변경했으므로 Release·Sandbox·WindowSmoke·ImGuiSmoke와 수동 화면 검증은 반복하지 않았다. GPU 없는 별도 장비 실행·실제 에셋 누락 주입·성능 측정은 하지 않았다.
+
+커밋 전 검토에서 Legacy 거부 검사를 CPU 회귀로 이동해 실제 모델과의 의존성을 제거하고 README 실행 안내와 표시 변경의 검증 기준을 정리했다. 최종 Debug 빌드와 기본·CPU·전체 실행을 다시 통과했으며 GPU 오류·경고는 0이었다. 파일 분할·통합과 새 프로젝트 추가는 하지 않았다.
 
 ### Quaternion 전환과 후속 검증 (2026-11-02~03)
 

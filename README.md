@@ -36,7 +36,9 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Debug -p:Platfor
 MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platform=x64
 ```
 
-실행 파일은 `bin/Sandbox/<구성>/Sandbox.exe`, 중간 산출물은 `obj/Sandbox/<구성>/`, 컴파일한 셰이더는 EXE 옆 `Shaders/`에 생성된다. 솔루션 빌드는 세 Smoke도 빌드하며 테스트 실행은 [자동 검증](docs/development.md#자동-검증)을 따른다. RendererSmoke는 기준 PNG·JPEG와 세 모델 bin, ImGuiSmoke는 메모리의 1×1 텍스처를 사용해 벽돌 에셋 없이 실행할 수 있으며 두 테스트는 두 구성 모두 Graphics Tools가 필요하다.
+실행 파일은 `bin/Sandbox/<구성>/Sandbox.exe`, 중간 산출물은 `obj/Sandbox/<구성>/`, 컴파일한 셰이더는 EXE 옆 `Shaders/`에 생성된다. 솔루션 빌드는 세 Smoke도 빌드하며 테스트 실행은 [자동 검증](docs/development.md#자동-검증)을 따른다.
+
+RendererSmoke 기본 실행은 저장소 fixture의 CPU 회귀와 짧은 GPU 수명 검사이며 실제 모델은 필요 없다. `--cpu`는 GPU 초기화 없이 CPU 회귀만, `--full`은 세 모델 bin을 포함한 기존 정밀 검사를 실행한다. ImGuiSmoke는 메모리의 1×1 텍스처를 사용한다. GPU 검사는 두 구성 모두 Graphics Tools가 필요하다. 평소에는 영향받는 대상·작업 구성만 검증하고, 전체 검증은 공통 렌더링 변경이나 마일스톤에 수행한다.
 
 모델 손상·변환 검사는 저장소의 [고정 fixture](Tests/Assets/ModelFixture/README.md)를 사용한다. 실제 모델 BIN 3개는 정상 로딩·렌더링 검증용으로 별도 준비해야 한다.
 

@@ -6,6 +6,8 @@
 
 네 실행 프로젝트가 필요한 공통 원본을 직접 컴파일하며, Math Utility 프로젝트가 수학 헤더를 별도로 관리한다. 별도 Engine 라이브러리는 없으며 Smoke는 Sandbox의 배포 의존성이 아니다.
 
+솔루션 탐색기의 `Smoke` 폴더에는 RendererSmoke·WindowSmoke·ImGuiSmoke를 묶는다. 실제 파일은 `Tests/`에 유지하며 이 폴더는 표시용으로만 사용한다.
+
 | 프로젝트 | 주요 입력 |
 |---|---|
 | [Math](../Engine/Math/Math.vcxproj) | 헤더 전용 Utility 프로젝트. 수치·벡터·행렬·Quaternion·Transform 헤더 표시·관리, 컴파일·링크 산출물 없음 |

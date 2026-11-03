@@ -32,6 +32,7 @@
 #include <fstream>
 #include <ios>
 #include <span>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -411,8 +412,25 @@ namespace rengine
 	}
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+	const std::string_view mode = argc == 2 ? argv[1] : "";
+	if (argc > 2 || (argc == 2 && mode != "--cpu" && mode != "--full" && mode != "--help"))
+	{
+		std::fputs("Usage: RendererSmoke [--cpu|--full|--help]\n", stderr);
+		return 2;
+	}
+
+	if (mode == "--help")
+	{
+		std::puts("RendererSmoke: CPU regressions + basic GPU lifecycle (no external models)\n"
+			"  --cpu: CPU regressions only; no GPU initialization\n"
+			"  --full: CPU + precise GPU pixels + external models + resize stress");
+		return 0;
+	}
+
+	const bool full = mode == "--full";
+	std::printf("RendererSmoke mode: %s\n", mode.empty() ? "basic" : argv[1]);
 	if (!rengine::CheckMathUtilities())
 	{
 		return 1;
@@ -449,6 +467,17 @@ int main()
 	if (!rengine::CheckJpegLoading())
 	{
 		return 1;
+	}
+
+	if (!rengine::CheckModelRegression())
+	{
+		return 1;
+	}
+
+	if (mode == "--cpu")
+	{
+		std::puts("PASS: CPU regressions; GPU checks not selected");
+		return 0;
 	}
 
 	Microsoft::WRL::ComPtr<ID3D12Debug> debug;
@@ -545,17 +574,17 @@ int main()
 			return 1;
 		}
 
-		if (!rengine::CheckTextureFaces(renderer))
+		if (full && !rengine::CheckTextureFaces(renderer))
 		{
 			return 1;
 		}
 
-		if (!rengine::CheckOcclusion(renderer))
+		if (full && !rengine::CheckOcclusion(renderer))
 		{
 			return 1;
 		}
 
-		if (!rengine::CheckPhongLighting(renderer))
+		if (full && !rengine::CheckPhongLighting(renderer))
 		{
 			return 1;
 		}
@@ -617,7 +646,10 @@ int main()
 				lighting);
 		};
 
-		for (auto size : sizes)
+		constexpr rengine::Size basicSizes[] = { { 1280, 720 }, { 640, 480 } };
+		const std::span<const rengine::Size> selectedSizes = full ?
+			std::span<const rengine::Size>(sizes) : std::span<const rengine::Size>(basicSizes);
+		for (auto size : selectedSizes)
 		{
 			if (!renderer.Resize(size.width, size.height))
 			{
@@ -631,7 +663,7 @@ int main()
 			}
 
 			// 명시적 전체 대기 없이 두 프레임 자원을 반복해서 재사용한다.
-			for (int frame = 0; frame < 16; ++frame)
+			for (int frame = 0; frame < (full ? 16 : 4); ++frame)
 			{
 				if (!renderFrame())
 				{
@@ -651,7 +683,7 @@ int main()
 		}
 
 		// 전체 대기 후에도 제출을 재개할 수 있으며 마지막 제출의 정리는 소멸자가 맡는다.
-		for (int frame = 0; frame < 8; ++frame)
+		for (int frame = 0; frame < (full ? 8 : 2); ++frame)
 		{
 			if (!renderFrame())
 			{
@@ -660,6 +692,7 @@ int main()
 		}
 	}
 
+	if (full)
 	{
 		rengine::TestWindow modelWindow;
 		if (!rengine::CheckImportedModel(modelWindow.GetHandle()))
@@ -718,7 +751,8 @@ int main()
 	}
 
 	std::printf(
-		"136 frames, 8 resize requests, repeated flush, resume, destruction: errors=%u warnings=%u\n",
+		"%s: repeated flush, resume, destruction: errors=%u warnings=%u\n",
+		full ? "Full (136 frames, 8 resize requests)" : "Basic (10 frames, 2 resize requests)",
 		errors,
 		warnings);
 	return errors == 0 && warnings == 0 ? 0 : 1;

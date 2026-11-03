@@ -407,7 +407,7 @@ namespace rengine
 		}
 	}
 
-	bool CheckImportedModel(HWND window)
+	bool CheckModelRegression()
 	{
 		const ExecutableDirectoryResult directory = GetExecutableDirectory();
 		if (FAILED(directory.result))
@@ -418,14 +418,6 @@ namespace rengine
 		const std::filesystem::path sourceDirectory = directory.directory / RNIMAN_SOURCE_ROOT;
 		if (!CheckModelFixture(sourceDirectory / L"Tests/Assets/ModelFixture/CubeV2.bin"))
 		{
-			return false;
-		}
-
-		const std::filesystem::path path = sourceDirectory / L"Assets/Models/BrickWallCube.bin";
-		const ModelLoadResult loaded = LoadStaticModel(path);
-		if (!loaded.model)
-		{
-			std::printf("FAIL: model load %s\n", loaded.error.c_str());
 			return false;
 		}
 
@@ -447,6 +439,28 @@ namespace rengine
 				return false;
 			}
 		}
+
+		std::puts("Legacy model fixtures: unsupported formats rejected");
+		return true;
+	}
+
+	bool CheckImportedModel(HWND window)
+	{
+		const ExecutableDirectoryResult directory = GetExecutableDirectory();
+		if (FAILED(directory.result))
+		{
+			return false;
+		}
+
+		const std::filesystem::path sourceDirectory = directory.directory / RNIMAN_SOURCE_ROOT;
+		const std::filesystem::path path = sourceDirectory / L"Assets/Models/BrickWallCube.bin";
+		const ModelLoadResult loaded = LoadStaticModel(path);
+		if (!loaded.model)
+		{
+			std::printf("FAIL: model load %s\n", loaded.error.c_str());
+			return false;
+		}
+
 
 		const StaticModel& model = *loaded.model;
 		if (model.baseColor != std::array<float, 4>{ 1, 1, 1, 1 } ||
