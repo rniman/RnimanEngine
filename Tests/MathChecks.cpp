@@ -1,9 +1,12 @@
 #include "MathChecks.h"
 
 #include "Math/MathUtils.h"
-#include "Math/VectorMath.h"
 #include "Math/MatrixMath.h"
 #include "Math/QuaternionMath.h"
+#include "Math/Transform.h"
+#include "Math/TransformMath.h"
+#include "Math/VectorMath.h"
+#include "SandboxRotation.h"
 
 #include <DirectXMath.h>
 
@@ -213,6 +216,118 @@ namespace rengine
 			!Slerp(identity, *yaw, -1) && !Slerp(identity, *yaw, nan) &&
 			!ComposeRotations(identity, { 0, 0, 0, 0 }) && !RotateVector({ infinity, 0, 0 }, identity),
 			"Quaternion failure propagation"))
+		{
+			return false;
+		}
+
+		// 행렬에서 Quaternion으로 복원하는 로딩 경로와 표시용 Euler 경로를 각각 검사한다.
+		for (const float sign : std::array{ -1.0f, 1.0f })
+		{
+			for (const float offset : std::array{ -0.001f, -0.000001f, 0.0f, 0.000001f, 0.001f })
+			{
+				const XMFLOAT3 angles{ sign * DirectX::XM_PIDIV2 + offset, -0.6f, 0.4f };
+				const std::optional<XMFLOAT4> rotation = QuaternionFromEuler(angles);
+				if (!rotation)
+				{
+					return Check(false, "boundary Quaternion creation");
+				}
+
+				Transform source;
+				source.position = { -2, 3, 4 };
+				source.scale = { 2, 0.7f, 1.3f };
+				source.rotation = *rotation;
+				const TransformDecompositionResult restored = DecomposeTransform(source.GetWorld());
+				const std::optional<XMFLOAT3> euler = ConvertQuaternionToEuler(*rotation);
+				const std::optional<XMFLOAT4> roundTrip = euler ? QuaternionFromEuler(*euler) : std::nullopt;
+				if (!Check(
+					restored.transform && NearlyEqual(
+						source.GetWorld(),
+						restored.transform->GetWorld(),
+						1e-4f,
+						1e-4f) &&
+					roundTrip && NearlyEqual(
+						DirectX::XMMatrixRotationQuaternion(DirectX::XMLoadFloat4(&*rotation)),
+						DirectX::XMMatrixRotationQuaternion(DirectX::XMLoadFloat4(&*roundTrip)),
+						1e-5f,
+						1e-5f),
+					"Quaternion TRS and display Euler near both poles"))
+				{
+					return false;
+				}
+			}
+		}
+
+		DirectX::XMMATRIX shear = DirectX::XMMatrixIdentity();
+		shear.r[0] = DirectX::XMVectorSet(1, 0.5f, 0, 0);
+		if (!Check(
+			!DecomposeTransform(shear).transform &&
+			!DecomposeTransform(DirectX::XMMatrixScaling(0, 1, 1)).transform &&
+			!DecomposeTransform(DirectX::XMMatrixScaling(-1, 1, 1)).transform &&
+			!ConvertQuaternionToEuler({ 0, 0, 0, 0 }) && !ConvertQuaternionToEuler({ nan, 0, 0, 1 }),
+			"TRS unsupported transforms and invalid Euler input"))
+		{
+			return false;
+		}
+
+		SandboxRotation editor;
+		const std::optional<XMFLOAT4> entered = editor.SetDegrees({ 0, 370, 0 });
+		if (!Check(entered.has_value(), "Euler edit conversion"))
+		{
+			return false;
+		}
+
+		if (!editor.Synchronize(*entered))
+		{
+			return Check(false, "Euler edit synchronization");
+		}
+
+		if (!Check(editor.GetDegrees().y == 370, "Euler edit turns retained"))
+		{
+			return false;
+		}
+
+		const std::optional<XMFLOAT4> invalidEdit = editor.SetDegrees({ nan, 0, 0 });
+		if (!Check(!invalidEdit && editor.GetDegrees().y == 370, "invalid Euler edit preserves state"))
+		{
+			return false;
+		}
+
+		const std::optional<XMFLOAT4> external = QuaternionFromEuler({ 0, DirectX::XMConvertToRadians(20), 0 });
+		if (!external)
+		{
+			return Check(false, "external rotation creation");
+		}
+
+		if (!editor.Synchronize(*external))
+		{
+			return Check(false, "external rotation synchronization");
+		}
+
+		if (!Check(
+			NearlyEqual(editor.GetDegrees().y, 380, 1e-4f, 0),
+			"external Quaternion synchronizes nearest Euler turn"))
+		{
+			return false;
+		}
+
+		const std::optional<XMFLOAT4> beforePole = editor.SetDegrees({ 89, 20, 30 });
+		const std::optional<XMFLOAT4> afterPole = QuaternionFromEuler({
+			DirectX::XMConvertToRadians(91),
+			DirectX::XMConvertToRadians(20),
+			DirectX::XMConvertToRadians(30) });
+		if (!beforePole || !afterPole)
+		{
+			return Check(false, "pole edit and external rotation creation");
+		}
+
+		if (!editor.Synchronize(*afterPole))
+		{
+			return Check(false, "pole rotation synchronization");
+		}
+
+		if (!Check(
+			NearlyEqual(editor.GetDegrees(), { 91, 20, 30 }, 0.001f, 0),
+			"Euler external update selects continuous branch across pole"))
 		{
 			return false;
 		}

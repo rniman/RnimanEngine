@@ -107,6 +107,20 @@ MSBuild.exe Tests/ImGuiSmoke.vcxproj -nologo -t:Build -p:Configuration=Release -
 
 기록은 수행 당시의 코드와 환경에 대한 결과다. 빌드·자동 실행·수동 화면 확인을 구분하며, 이후 변경이나 문서 정리가 과거 결과를 재검증한 것은 아니다. `obj/`의 로그·임시 검사는 Git 제외 산출물이므로 다른 환경에 없을 수 있다.
 
+### Quaternion 전환과 후속 검증 (2026-11-02~03)
+
+Transform을 단위 Quaternion 저장으로 바꿔 로딩의 Euler 복원 경로를 제거했다. 원본 행렬과 TRS 재구성 비교는 유지하며 Binary v2·에셋 재익스포트는 필요 없다. Sandbox는 모델별 Euler degree 편집값을 유지하고 자동 회전은 월드 고정 축의 Quaternion 증분으로 합성한다. 현재 계약과 표시 한계는 [Quaternion 저장과 Euler 편집](math.md#quaternion-저장과-euler-편집)에 둔다.
+
+컨벤션은 11월 2일 로컬 보관본 참고 후, 11월 3일 접근 절차에 따른 샌드박스 밖 curl로 공개 홈·baseline·관련 C++ 채택 문서를 다시 확인했다. 직접 include·그룹 내 정렬, 동사형 ConvertQuaternionToEuler, 테스트 상태 변경의 단계별 검사를 적용했다. SandboxRotation은 두 캐시의 일관성을 위해 class의 비공개 상태로 바꾸고 GetDegrees·SetDegrees·Synchronize로 접근한다. 복사·이동은 값 멤버의 기본 동작을 유지한다. 기존 Transform의 공개 값 타입과 QuaternionFromEuler 등 기존 API 이름은 이번 정리에서 제외하며 해당 API 개정 시 별도로 검토한다. 위키·공통 규칙 변경은 없다.
+
+| 단계 | 당시 검증 결과·근거 | 한계 |
+|---|---|---|
+| Quaternion 전환 (11월 2일) | Debug·Release 솔루션·RendererSmoke·ImGuiSmoke 통과(오류·경고 0). fixture 로딩의 ±90도·±0.001 인접 각도, MathChecks의 ±0.000001·Euler 왕복·전단/특이/반전 거부·370° 유지·외부 20°→380° 동기화·89°→91° 분기 검사 통과. Transform·TransformMath·QuaternionMath·SandboxRotation의 PCH 없는 C++20 `/W4 /WX /Zs` 검사 통과. `obj/quaternion-*.log` | 당시 UI 위젯의 실제 입력 검사는 미수행. 이후 발견한 Clamp 문제는 다음 행에서 수정 |
+| 회전 입력 Clamp 수정 (11월 2일) | `(0,0)` 범위에 AlwaysClamp의 ClampZeroRange가 적용되어 회전을 0으로 고정하던 문제 수정. 유효 범위가 있을 때만 Clamp를 적용. 실제 EditVector3를 추출한 ImGui 문맥에서 수정 전 드래그·370 입력은 0, 수정 후 드래그 50·텍스트 370 확인. Debug·Release Sandbox 빌드 통과 | `obj/rotation-widget-before.cpp`·`obj/rotation-widget-check.cpp`는 임시 검사이며 유지 테스트 프로젝트가 아님. 이 단계에서는 공통 Math 변경이 없어 RendererSmoke 반복 없음 |
+| 컨벤션 보완 (11월 3일) | Debug·Release 솔루션·RendererSmoke·ImGuiSmoke 통과. QuaternionMath·TransformMath·SandboxRotation 독립 헤더 컴파일, 로컬 링크·앵커 155개·공백 검사 통과. `obj/quaternion-convention-*.log` | 기존 API의 일괄 명명 변경은 범위 밖 |
+
+각 단계에서 두 구성의 Sandbox를 실제 에셋으로 숨김 실행해 합성 입력·2회 리사이즈·정상 종료를 확인했다. WindowSmoke는 솔루션 빌드만 수행했다. 실제 창에서의 선택 전환·회전 편집·자동 회전 재개와 물리 입력·시각 확인은 미수행이며 M02 수동 검증은 남아 있다. 아래 Math 분리 기록의 미해결 TRS 설명은 그 작업 당시의 상태다.
+
 ### Math 적용과 검증 (2026-11-02)
 
 Math는 헤더 전용 모듈이며 x64 Debug·Release의 Utility 프로젝트에서 관리한다. 기존 DirectXMath 타입·rengine·inline·직접 include·한국어 계약 주석을 유지한다. 별도 cpp·lib·MathTypes 래퍼·MathTests·ProjectReference는 추가하지 않았다. 소비 프로젝트의 중복 헤더 표시와 Sandbox의 빈 Math 필터는 제거했다.

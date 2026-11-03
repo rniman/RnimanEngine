@@ -42,7 +42,7 @@
 
 [Math Utility](../Engine/Math/Math.vcxproj)는 수치·벡터·행렬·Quaternion·Transform의 여섯 헤더를 관리한다. 소비자는 Engine include 경로로 포함하며 별도 cpp·lib·ProjectReference는 필요 없다. 헤더는 소비 프로젝트에서 컴파일한다. Utility의 C++20·Engine include 경로·`/utf-8`은 자체 편집·분석 문맥을 위한 설정이다.
 
-실제 사용 흐름은 `LoadStaticModel → DecomposeTransform`, `BuildObjectTransformConstants → BuildNormalTransform`이다. 파일 오류 전달은 Assets, WVP·셰이더 상수 구성은 Rendering에 남는다. 기존 TRS 계산식과 [경계 결함](static-model.md#계층-지원-범위와-알려진-문제)은 유지된다.
+실제 사용 흐름은 `LoadStaticModel → DecomposeTransform`, `BuildObjectTransformConstants → BuildNormalTransform`이다. 파일 오류 전달은 Assets, WVP·셰이더 상수 구성은 Rendering에 남는다. TRS 분해는 Quaternion을 직접 저장하고 재구성 오차로 전단을 거부한다. 표시용 Euler와 편집 캐시는 [SandboxRotation](../Sandbox/SandboxRotation.h)이 관리하며, Math에는 UI 상태를 두지 않는다. [계층 지원 범위](static-model.md#계층-지원-범위와-알려진-문제)를 따른다.
 
 연산 계약·사용 예·[MathChecks의 실행 흐름](math.md#mathchecks-검증)은 Math 문서에서 관리한다. MathChecks는 RendererSmoke에 포함하며 별도 MathTests 프로젝트는 없다. 변경 당시 검증은 [개발 기록](development.md#math-적용과-검증-2026-11-02)을 따른다.
 

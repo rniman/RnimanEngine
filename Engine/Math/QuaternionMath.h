@@ -43,6 +43,41 @@ namespace rengine
 		return NormalizeQuaternion(result);
 	}
 
+	/// @brief Quaternion을 표시용 pitch/yaw/roll(radian)로 변환한다. 입력은 내부 정규화한다.
+	/// @return 0·비유한 입력이면 nullopt. pitch는 [-pi/2,pi/2]이며 극점에서는 roll=0을 선택한다.
+	/// @note Euler는 유일하지 않다. 저장·회전 누적에는 Quaternion을 사용하고 UI는 편집값을 별도 유지한다.
+	[[nodiscard]] inline std::optional<DirectX::XMFLOAT3> ConvertQuaternionToEuler(const DirectX::XMFLOAT4& value)
+	{
+		if (!IsFinite(value))
+		{
+			return std::nullopt;
+		}
+
+		const double length = std::sqrt(
+			static_cast<double>(value.x) * value.x + static_cast<double>(value.y) * value.y +
+			static_cast<double>(value.z) * value.z + static_cast<double>(value.w) * value.w);
+		if (length == 0)
+		{
+			return std::nullopt;
+		}
+
+		// float 행렬의 asin 입력이 극점 근처에서 ±1로 반올림되는 것을 피한다.
+		const double x = value.x / length;
+		const double y = value.y / length;
+		const double z = value.z / length;
+		const double w = value.w / length;
+		const double m12 = 2 * (x * y + w * z);
+		const double m22 = 1 - 2 * (x * x + z * z);
+		const double cosine = std::hypot(m12, m22);
+		const double pitch = std::atan2(2 * (w * x - y * z), cosine);
+		const double yaw = cosine > 1e-6 ?
+			std::atan2(2 * (x * z + w * y), 1 - 2 * (x * x + y * y)) :
+			std::atan2(2 * (w * y - x * z), 1 - 2 * (y * y + z * z));
+		const double roll = cosine > 1e-6 ? std::atan2(m12, m22) : 0;
+		return DirectX::XMFLOAT3{
+			static_cast<float>(pitch), static_cast<float>(yaw), static_cast<float>(roll) };
+	}
+
 	/// @brief 축은 내부에서 정규화하고 각도는 radian으로 받는다. 0축·비유한 입력은 nullopt다.
 	[[nodiscard]] inline std::optional<DirectX::XMFLOAT4> QuaternionFromAxisAngle(
 		const DirectX::XMFLOAT3& axis,

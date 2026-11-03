@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Math/QuaternionMath.h"
 #include "Math/Transform.h"
 
 #include <DirectXMath.h>
@@ -44,9 +45,8 @@ namespace rengine
 		const char* error = nullptr;
 	};
 
-	/// @brief World를 양수 Scale·pitch/yaw/roll의 Transform으로 분해하고 재구성 오차를 검사한다.
+	/// @brief World를 양수 Scale·Quaternion의 Transform으로 분해하고 재구성 오차를 검사한다.
 	/// @return 실패 시 빈 transform과 원인. 로그·예외 변환·파일 경로 표시는 호출자가 담당한다.
-	/// @note 기존 로더의 계산식·허용 오차를 유지한다. ±90도 인접 각도의 복원 오류는 아직 미해결이다.
 	[[nodiscard]] inline TransformDecompositionResult DecomposeTransform(const DirectX::XMMATRIX& world)
 	{
 		if (!BuildNormalTransform(world))
@@ -70,20 +70,15 @@ namespace rengine
 			return { std::nullopt, "Model requires positive TRS scale" };
 		}
 
-		DirectX::XMFLOAT4X4 matrix{};
-		DirectX::XMStoreFloat4x4(&matrix, DirectX::XMMatrixRotationQuaternion(rotation));
-		// Transform의 pitch/yaw/roll 순서로 복원하고 gimbal lock에서는 roll을 0으로 고정한다.
-		transform.rotation.x = std::asin(std::clamp(-matrix._32, -1.0f, 1.0f));
-		if (std::abs(std::cos(transform.rotation.x)) > 1e-5f)
+		DirectX::XMFLOAT4 quaternion{};
+		DirectX::XMStoreFloat4(&quaternion, rotation);
+		const std::optional<DirectX::XMFLOAT4> normalized = NormalizeQuaternion(quaternion);
+		if (!normalized)
 		{
-			transform.rotation.y = std::atan2(matrix._31, matrix._33);
-			transform.rotation.z = std::atan2(matrix._12, matrix._22);
+			return { std::nullopt, "Model rotation cannot be normalized" };
 		}
-		else
-		{
-			transform.rotation.y = std::atan2(-matrix._13, matrix._11);
-			transform.rotation.z = 0.0f;
-		}
+
+		transform.rotation = *normalized;
 
 		// 편집 가능한 TRS로 재구성되지 않는 전단을 조용히 근사하지 않는다.
 		DirectX::XMFLOAT4X4 original{};

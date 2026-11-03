@@ -4,10 +4,12 @@
 #include "SandboxCamera.h"
 #include "SandboxGui.h"
 #include "SandboxLighting.h"
+#include "SandboxRotation.h"
 
 #include "Assets/AssetLoader.h"
 #include "Assets/ImageData.h"
 #include "Assets/ModelLoader.h"
+#include "Math/QuaternionMath.h"
 #include "Math/Transform.h"
 #include "Platform/Win32Window.h"
 #include "Rendering/D3D12Renderer.h"
@@ -55,6 +57,7 @@ namespace rengine
 			float minimum,
 			float maximum)
 		{
+			// 범위 없는 회전 입력은 ClampZeroRange를 포함한 AlwaysClamp를 사용하지 않는다.
 			// XMFLOAT3 멤버를 포인터 산술로 순회하지 않고 ImGui의 배열 입력으로 복사한다.
 			float values[] = { vector.x, vector.y, vector.z };
 			const bool changed = ImGui::DragFloat3(
@@ -64,7 +67,7 @@ namespace rengine
 				minimum,
 				maximum,
 				"%.3f",
-				ImGuiSliderFlags_AlwaysClamp);
+				minimum < maximum ? ImGuiSliderFlags_AlwaysClamp : ImGuiSliderFlags_None);
 			if (changed)
 			{
 				vector = { values[0], values[1], values[2] };
@@ -272,10 +275,20 @@ namespace rengine
 		{
 			if (object.autoRotate)
 			{
-				float& angle = object.transform.rotation.*object.rotationAxis;
-				angle = static_cast<float>(std::remainder(
-					angle + animationSeconds * object.rotationSpeed,
+				const float angle = static_cast<float>(std::remainder(
+					animationSeconds * object.rotationSpeed,
 					static_cast<double>(DirectX::XM_2PI)));
+				const std::optional<DirectX::XMFLOAT4> delta = QuaternionFromAxisAngle(object.rotationAxis, angle);
+				const std::optional<DirectX::XMFLOAT4> rotation = delta ?
+					ComposeRotations(object.transform.rotation, *delta) : std::nullopt;
+				if (!rotation)
+				{
+					object.autoRotate = false;
+					mInvalidEdit = true;
+					continue;
+				}
+
+				object.transform.rotation = *rotation;
 			}
 		}
 	}
@@ -350,15 +363,35 @@ namespace rengine
 		}
 
 		auto& object = mObjects[mSelectedObject];
+		if (!object.rotationEditor.Synchronize(object.transform.rotation))
+		{
+			mInvalidEdit = true;
+			return;
+		}
+
+		SandboxRotation rotationEditor = object.rotationEditor;
+		DirectX::XMFLOAT3 degrees = rotationEditor.GetDegrees();
 		// 편집 복사본 전체를 검증한 뒤 공개해 부분 적용을 피한다.
 		Transform edited = object.transform;
 		bool changed = EditVector3("Position", edited.position, 0.02f, -100.0f, 100.0f);
 		const bool rotationChanged = EditVector3(
-			"Rotation (rad)",
-			edited.rotation,
-			0.01f,
-			-DirectX::XM_PI,
-			DirectX::XM_PI);
+			"Rotation (deg)",
+			degrees,
+			0.5f,
+			0.0f,
+			0.0f);
+		if (rotationChanged)
+		{
+			const std::optional<DirectX::XMFLOAT4> rotation = rotationEditor.SetDegrees(degrees);
+			if (!rotation)
+			{
+				mInvalidEdit = true;
+				return;
+			}
+
+			edited.rotation = *rotation;
+		}
+
 		changed |= rotationChanged;
 		changed |= EditVector3("Scale", edited.scale, 0.01f, 0.05f, 10.0f);
 		if (changed)
@@ -368,6 +401,7 @@ namespace rengine
 			if (!mInvalidEdit)
 			{
 				object.transform = edited;
+				object.rotationEditor = rotationEditor;
 				if (rotationChanged)
 				{
 					object.autoRotate = false;

@@ -54,6 +54,7 @@
     <ClInclude Include="../Engine/Assets/ImageData.h" />
     <ClInclude Include="../Engine/Rendering/RenderData.h" />
     <ClInclude Include="../Sandbox/SandboxLighting.h" />
+    <ClInclude Include="../Sandbox/SandboxRotation.h" />
     <None Include="Assets/ColorTest.jpg" />
     <None Include="Assets/ModelFixture/CubeV2.bin" />
     <None Include="Assets/ModelFixture/README.md" />

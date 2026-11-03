@@ -8,7 +8,7 @@ Unity Binary v2의 **BrickWallCube·BrickWallSphere·DamagedHelmet**을 동시�
 
 ReferenceImporter·ImGui는 포함되어 있으며 모델·이미지는 별도 준비한다. 현재 Sandbox는 고정 인스턴스 3개를 편집하며 실행 중 생성·삭제와 부모·자식 계층 편집은 지원하지 않는다.
 
-M02는 TRS 복원 오류 수정과 최신 v2 화면·편집 검증을 남겨 둔 미태깅 상태다. 이후 일반 오브젝트의 생성·삭제를 구현하고 ECS와 비교한다. [로드맵](docs/roadmap.md) · [모델 계약·알려진 문제](docs/static-model.md)
+M02는 최신 v2 화면·편집 검증을 남겨 둔 미태깅 상태다. Transform은 Quaternion을 저장하며 모델 로딩에서 Euler 복원을 제거했다. 이후 일반 오브젝트의 생성·삭제를 구현하고 ECS와 비교한다. [로드맵](docs/roadmap.md) · [모델 계약·알려진 문제](docs/static-model.md)
 
 ## 빌드와 실행
 
@@ -44,9 +44,10 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 
 ## 개발 UI
 
-`Sandbox Tools` 패널에서 모델 인스턴스 선택·위치·회전(radian)·양수 Scale, 카메라 위치, 방향광 yaw/pitch·강도를 편집한다. 숫자는 드래그하거나 Ctrl+클릭으로 입력한다. 편집 값은 실행 중에만 유지한다. Model 0의 초기 Position은 `(0,0,0)`, Scale은 `(1,1,1)`이며 카메라는 `(0,3,-8)`에서 시작한다.
+`Sandbox Tools` 패널에서 모델 인스턴스 선택·위치·회전(Euler degree)·양수 Scale, 카메라 위치, 방향광 yaw/pitch·강도를 편집한다. 숫자는 드래그하거나 Ctrl+클릭으로 입력한다. 편집 값은 실행 중에만 유지한다. Model 0의 초기 Position은 `(0,0,0)`, Scale은 `(1,1,1)`이며 카메라는 `(0,3,-8)`에서 시작한다.
 
-- 회전 편집은 선택한 모델의 자동 회전을 정지한다. `Auto rotate`로 재개하면 편집 각도부터 이어간다. 위치·Scale 편집은 자동 회전을 중단하지 않는다.
+- 모델별 Euler 편집값을 유지하므로 370° 같은 입력이 즉시 10°로 바뀌지 않는다. 외부 회전 변경 시 이전 표시값에 가까운 Euler 표현으로 동기화한다. 극점에서는 표시 각도가 달라질 수 있다.
+- 자동 회전은 모델별 월드 고정 축의 Quaternion 증분을 합성한다. 회전 편집은 선택한 모델의 자동 회전을 정지한다. `Auto rotate`로 재개하면 편집한 방향에서 이어간다. 위치·Scale 편집은 자동 회전을 중단하지 않는다.
 - Scale은 0.05~10, 위치는 −100~100으로 제한한다. 비유한·특이·반전 변환은 거부하고 패널에 표시한다.
 - `Show Dear ImGui Demo`로 공식 Demo Window를 열고, `Reset light`로 기존 R 키와 같은 초기값을 적용한다.
 - UI가 마우스·키보드를 캡처하는 동안 해당 카메라·조명 조작을 차단한다. 장면의 빈 곳을 클릭하면 앱 키 조작으로 돌아간다.
@@ -72,7 +73,7 @@ Dear ImGui v1.93.0 소스·MIT 라이선스는 저장소에 포함되어 별도 
 
 진입점은 [Main.cpp](Sandbox/Main.cpp)의 `wWinMain` → [rengine::SandboxApp::Run](Sandbox/SandboxApp.cpp)이다. [실행·소유권 계약](docs/design.md#sandbox-실행-구조)과 [프로젝트별 소스 구성](docs/project-structure.md#현재-프로젝트와-코드)을 참고한다.
 
-행렬 검증·TRS 복원은 [헤더 전용 Math 모듈](docs/project-structure.md#헤더-전용-math-모듈)에 있으며 로더와 렌더링 상수 계산에서 사용한다. 솔루션의 Math Utility 프로젝트에서 수치·벡터·행렬·Quaternion·Transform 헤더를 관리하며 별도 라이브러리를 링크하지 않는다. 기존 TRS 경계 오류는 아직 수정하지 않았다.
+행렬 검증·TRS 복원은 [헤더 전용 Math 모듈](docs/project-structure.md#헤더-전용-math-모듈)에 있으며 로더와 렌더링 상수 계산에서 사용한다. 솔루션의 Math Utility 프로젝트에서 수치·벡터·행렬·Quaternion·Transform 헤더를 관리하며 별도 라이브러리를 링크하지 않는다. TRS 분해 결과의 Quaternion을 직접 보존하며, UI용 Euler 변환과 분리한다.
 
 Visual Studio 솔루션 탐색기의 Docs에서도 프로젝트 문서를 열 수 있다.
 

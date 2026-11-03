@@ -118,6 +118,7 @@
     <ClInclude Include="../Engine/Assets/ImageData.h" />
     <ClInclude Include="../Engine/Rendering/RenderData.h" />
     <ClInclude Include="SandboxLighting.h" />
+    <ClInclude Include="SandboxRotation.h" />
     <ClCompile Include="SandboxApp.cpp" />
     <ClCompile Include="../Engine/Platform/Win32Window.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>

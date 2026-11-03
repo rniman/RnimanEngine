@@ -3,6 +3,7 @@
 #include "SandboxCamera.h"
 #include "SandboxGui.h"
 #include "SandboxLighting.h"
+#include "SandboxRotation.h"
 
 #include "Math/Transform.h"
 #include "Platform/Win32Window.h"
@@ -37,25 +38,26 @@ namespace rengine
 		struct ModelInstance
 		{
 			Transform transform;
-			// 개체 주소 대신 회전 성분을 지정하므로 ModelInstance를 복사해도 다른 개체를 참조하지 않는다.
-			float DirectX::XMFLOAT3::* rotationAxis;
+			// 월드 공간의 고정 회전축. 편집한 Quaternion에 증분 회전을 합성한다.
+			DirectX::XMFLOAT3 rotationAxis;
 			double rotationSpeed; // 회전 속도(radian/second)
 			bool autoRotate;
+			SandboxRotation rotationEditor;
 		};
 
 		// 초기 목록에서 개수를 유도한다. 선택 UI·회전·렌더링은 이 목록과 같은 크기를 사용한다.
 		static constexpr std::array INITIAL_OBJECTS = {
 			ModelInstance{
 				Transform{}, // 로딩 성공 시 파일의 Transform으로 교체한다.
-				&DirectX::XMFLOAT3::y, 0.7, false
+				{ 0, 1, 0 }, 0.7, false, {}
 			},
 			ModelInstance{
-				Transform{ { -2.0f, 0.0f, 0.0f }, {}, { 1.25f, 1.25f, 1.25f } },
-				&DirectX::XMFLOAT3::x, 0.35, true
+				Transform{ { -2.0f, 0.0f, 0.0f }, { 0, 0, 0, 1 }, { 1.25f, 1.25f, 1.25f } },
+				{ 1, 0, 0 }, 0.35, true, {}
 			},
 			ModelInstance{
-				Transform{ { 2.0f, 0.0f, 0.0f }, {}, { 0.8f, 0.8f, 0.8f } },
-				&DirectX::XMFLOAT3::z, -0.7, true
+				Transform{ { 2.0f, 0.0f, 0.0f }, { 0, 0, 0, 1 }, { 0.8f, 0.8f, 0.8f } },
+				{ 0, 0, 1 }, -0.7, true, {}
 			}
 		};
 

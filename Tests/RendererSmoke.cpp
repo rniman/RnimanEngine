@@ -8,6 +8,7 @@
 
 #include "Assets/AssetLoader.h"
 #include "Assets/ImageData.h"
+#include "Math/QuaternionMath.h"
 #include "Math/Transform.h"
 #include "Rendering/D3D12Renderer.h"
 #include "Rendering/RenderData.h"
@@ -203,7 +204,7 @@ namespace rengine
 				front.scale = { 0.8f, 0.8f, 0.8f };
 				Transform back;
 				back.position = { 0.5f, 0.0f, 3.0f };
-				back.rotation.y = 0.6f;
+				back.rotation = *QuaternionFromEuler({ 0, 0.6f, 0 });
 				std::array<ObjectTransformConstants, 2> transforms;
 				transforms[0] = BuildObjectTransformConstants(front.GetWorld(), view * projection).value();
 				transforms[1] = BuildObjectTransformConstants(back.GetWorld(), view * projection).value();
@@ -286,7 +287,7 @@ namespace rengine
 			}
 
 			transform.position = { 3.0f, 4.0f, 5.0f };
-			transform.rotation.z = DirectX::XM_PIDIV2;
+			transform.rotation = *QuaternionFromEuler({ 0, 0, DirectX::XM_PIDIV2 });
 			transform.scale = { 2.0f, 3.0f, 4.0f };
 			return DirectX::XMVector3NearEqual(
 				DirectX::XMVector3TransformCoord(point, transform.GetWorld()),
@@ -594,7 +595,7 @@ int main()
 			{
 				rengine::Transform object;
 				object.position = { static_cast<float>(index) * 0.3f, 0.0f, static_cast<float>(index) * 0.5f };
-				object.rotation = { angle * 0.5f, angle, 0.0f };
+				object.rotation = *rengine::QuaternionFromEuler({ angle * 0.5f, angle, 0.0f });
 				object.scale = { 0.5f, 0.8f, 0.6f };
 				transforms[index] = rengine::BuildObjectTransformConstants(
 					object.GetWorld(),

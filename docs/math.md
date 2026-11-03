@@ -8,7 +8,7 @@
 
 기존 DirectXMath의 XMFLOAT3·XMFLOAT4·XMMATRIX를 사용한다. 자체 Vector/Matrix 래퍼와 MathTypes 별칭 계층은 도입하지 않았다. Quaternion은 XMFLOAT4 `(x,y,z,w)`이며 단위 회전은 `(0,0,0,1)`이다. 일반 XMFLOAT4와 타입으로 구분되지 않으므로 Quaternion 함수 이름으로 의도를 표시한다.
 
-행 벡터·World = Scale × Rotation × Translation을 유지한다. Euler 입력은 radian의 pitch(X)·yaw(Y)·roll(Z)이며 실제 회전 적용 순서는 Roll → Pitch → Yaw다. 회전 API는 radian을 받는다. Quaternion에서 Euler로 돌아오는 변환은 이번에 추가하지 않았다.
+행 벡터·World = Scale × Rotation × Translation을 유지한다. Euler 입력은 radian의 pitch(X)·yaw(Y)·roll(Z)이며 실제 회전 적용 순서는 Roll → Pitch → Yaw다. 회전 API는 radian을 받는다. ConvertQuaternionToEuler는 UI 표시용으로만 사용한다. Transform은 정규화된 Quaternion을 저장한다.
 
 ## 연산 목록
 
@@ -17,8 +17,8 @@
 | [MathUtils.h](../Engine/Math/MathUtils.h) | NearlyEqual, WrapRadians·DeltaAngle, LerpClamped·InverseLerpClamped·RemapClamped·SmoothStep·MoveTowards |
 | [VectorMath.h](../Engine/Math/VectorMath.h) | XMFLOAT3/4의 IsFinite, XMFLOAT3의 NearlyEqual·Normalize·ProjectOnVector·ProjectOnPlane·Reflect·AngleBetween |
 | [MatrixMath.h](../Engine/Math/MatrixMath.h) | IsFinite·IsAffine·NearlyEqual, Inverse·TransformPoint·TransformDirection |
-| [QuaternionMath.h](../Engine/Math/QuaternionMath.h) | NormalizeQuaternion·QuaternionFromEuler·QuaternionFromAxisAngle·ComposeRotations·Slerp·RotateVector |
-| [Transform.h](../Engine/Math/Transform.h) | 위치·Euler 회전·Scale 데이터와 GetWorld |
+| [QuaternionMath.h](../Engine/Math/QuaternionMath.h) | NormalizeQuaternion·QuaternionFromEuler·ConvertQuaternionToEuler·QuaternionFromAxisAngle·ComposeRotations·Slerp·RotateVector |
+| [Transform.h](../Engine/Math/Transform.h) | 위치·Quaternion 회전·Scale 데이터와 GetWorld |
 | [TransformMath.h](../Engine/Math/TransformMath.h) | 기존 BuildNormalTransform·DecomposeTransform과 실패 원인 |
 
 기본 덧셈·내적·외적·행렬 곱·뷰/투영 생성은 DirectXMath, 일반 Clamp·Lerp는 표준 라이브러리를 사용할 수 있다. 위 함수는 실패 검증·단위·보간 범위 등 프로젝트 계약을 더한다. 보간/이동·투영·회전 기능은 사용자의 요청에 따라 후속 구현을 위해 미리 준비했으며 현재 Sandbox의 연산을 일괄 교체하지 않았다.
@@ -66,4 +66,12 @@ MathChecks는 **기존 RendererSmoke에 포함된 CPU 수학 검사 코드**다.
 
 검사 소스 자체는 창·GPU에 의존하지 않지만 **RendererSmoke 전체 실행에는 GPU·셰이더·에셋이 필요하다.** 빌드만으로 검사가 실행되지는 않는다. 실행 명령과 준비 조건은 [자동 검증](development.md#자동-검증), 수행 결과는 [Math 검증 기록](development.md#math-적용과-검증-2026-11-02)에 둔다.
 
-모델 fixture의 TRS 검사는 기존 [ModelChecks.cpp](../Tests/ModelChecks.cpp)의 `CheckModelTransforms`가 담당한다. MathChecks 통과는 [90도 근처 TRS 결함](static-model.md#계층-지원-범위와-알려진-문제)의 해결을 뜻하지 않는다. 해당 복원식 수정과 회귀 입력 확대는 후속 작업이다.
+모델 fixture의 TRS 검사는 기존 [ModelChecks.cpp](../Tests/ModelChecks.cpp)의 `CheckModelTransforms`가 담당한다. 양쪽 ±90도와 인접 각도의 실제 파일 로딩·행렬 보존을 검사한다. MathChecks는 표시용 Euler 왕복, 전단·특이·반전 거부와 SandboxRotation의 370° 유지·외부 회전 동기화도 검사한다.
+
+## Quaternion 저장과 Euler 편집
+
+Transform::rotation은 정규화된 XMFLOAT4이며 기본값은 `(0,0,0,1)`이다. 기존 XMFLOAT3 회전 대입은 QuaternionFromEuler 등의 생성 함수로 바꿔야 한다. GetWorld는 단위 Quaternion을 전제로 하며 임의의 네 성분을 회전각처럼 수정하지 않는다.
+
+DecomposeTransform은 Scale·Quaternion·Translation을 저장한 뒤 원본 행렬과 재구성 결과를 비교한다. ConvertQuaternionToEuler는 double 계산과 atan2로 표시 각도를 구하며 극점에서는 roll=0을 선택한다. 회전의 유일한 Euler 표현이나 극점에서의 연속 표시를 보장하지 않는다.
+
+[SandboxRotation](../Sandbox/SandboxRotation.h)은 모델별 Euler degree와 마지막 Quaternion을 비공개로 보관한다. GetDegrees로 편집 복사본을 얻고 SetDegrees·Synchronize를 통해 갱신한다. UI 입력은 degree→radian→Quaternion으로 반영하고, 같은 회전을 다시 읽어 편집값을 덮어쓰지 않는다. 외부 Quaternion 변경 시 동등한 두 Euler 분기와 360° 주기 중 이전 값에 가까운 표현을 선택한다. UI 표시·동기화는 Transform이나 로더의 책임이 아니다.

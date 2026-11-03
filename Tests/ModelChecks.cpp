@@ -6,6 +6,7 @@
 #include "Assets/ImageData.h"
 #include "Assets/MeshData.h"
 #include "Assets/ModelLoader.h"
+#include "Math/QuaternionMath.h"
 #include "Math/Transform.h"
 #include "Rendering/D3D12Renderer.h"
 #include "Rendering/RenderData.h"
@@ -120,12 +121,15 @@ namespace rengine
 				return false;
 			}
 
-			for (int test = 0; test < 5; ++test)
+			for (int test = 0; test < 11; ++test)
 			{
 				Transform transform;
 				transform.position = { -2, 3, 4 };
 				transform.scale = { 2, 0.7f, 1.3f };
-				transform.rotation = { test == 1 ? DirectX::XM_PIDIV2 : 0.3f, -0.6f, 0.4f };
+				const float pitch = test >= 5 ?
+					(test < 8 ? 1.0f : -1.0f) * (DirectX::XM_PIDIV2 + (test % 3 - 1) * 0.001f) :
+					(test == 1 ? DirectX::XM_PIDIV2 : 0.3f);
+				transform.rotation = *QuaternionFromEuler({ pitch, -0.6f, 0.4f });
 				DirectX::XMMATRIX world = transform.GetWorld();
 				if (test == 2)
 				{
@@ -169,7 +173,7 @@ namespace rengine
 				}
 
 				const ModelLoadResult loaded = LoadStaticModel(temporary.GetPath());
-				if (test >= 2)
+				if (test >= 2 && test <= 4)
 				{
 					if (loaded.model || loaded.error.empty())
 					{
@@ -506,7 +510,7 @@ namespace rengine
 				edited.position = { 1, 2, 3 };
 				edited.scale = { 2, 1, 0.5f };
 				const float step = static_cast<float>(test);
-				edited.rotation = { 0.2f * step, -0.35f * step, 0.1f * step };
+				edited.rotation = *QuaternionFromEuler({ 0.2f * step, -0.35f * step, 0.1f * step });
 				const DirectX::XMMATRIX world = (source == 0 ? DirectX::XMMatrixScaling(0.5f, 0.5f, 0.5f) :
 					DirectX::XMMatrixIdentity()) * edited.GetWorld();
 				const DirectX::XMMATRIX view = DirectX::XMMatrixLookAtLH(

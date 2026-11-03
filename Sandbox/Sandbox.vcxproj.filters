@@ -59,6 +59,7 @@
     <ClCompile Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_win32.cpp"><Filter>ThirdParty\imgui\backends</Filter></ClCompile>
     <ClInclude Include="$(EngineRoot)ThirdParty/imgui/backends/imgui_impl_win32.h"><Filter>ThirdParty\imgui\backends</Filter></ClInclude>
     <ClInclude Include="SandboxLighting.h" />
+    <ClInclude Include="SandboxRotation.h" />
     <ClInclude Include="pch.h" />
     <ClCompile Include="Main.cpp" />
     <ClInclude Include="SandboxApp.h" />

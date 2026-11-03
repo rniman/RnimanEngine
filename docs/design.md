@@ -26,7 +26,7 @@ Engine·Sandbox·Tests의 직접 작성 C++는 `rengine` 단일 루트를 사용
 | 벡터·합성 | 행 벡터 `p * M`, `World = S * R * T`, `WVP = World * View * Projection` |
 | 저장·전달 | `XMStoreFloat4x4` 행 우선 저장 → HLSL `row_major float4x4` → `mul(position, matrix)`. 전달용 전치 없음 |
 | 법선 | World 역전치의 3×3 부분으로 변환한 뒤 PS에서 정규화 |
-| 회전 | `rotation.x/y/z`는 pitch(X)/yaw(Y)/roll(Z), radian. `XMMatrixRotationRollPitchYaw` 사용 |
+| 회전 | `rotation`은 정규화된 Quaternion `(x,y,z,w)`. `XMMatrixRotationQuaternion` 사용. UI는 별도 Euler degree 값으로 편집 |
 
 행 우선 저장·행 벡터 연산·좌표계의 손잡이는 각각 별도 선택이다. Direct3D가 월드 축이나 왼손 좌표계를 강제하지 않는다.
 
@@ -50,7 +50,7 @@ Engine·Sandbox·Tests의 직접 작성 C++는 `rengine` 단일 루트를 사용
 
 SandboxApp은 창·렌더러·SandboxGui·카메라·조명·서로 다른 모델 인스턴스 3개를 소유하며 복사·이동하지 않는다. `Run`은 한 번만 호출하고 메시지 → 최소화 대기 → 프레임 경계 리사이즈 → ImGui `NewFrame`·캡처 반영 → 입력 소비 → `Update` → `DrawTools`·ImGui `Render` → 렌더러 `Render`를 반복한다. 정상 종료는 GPU 완료 후 WM_QUIT 코드, 실패는 1을 반환한다.
 
-카메라·조명은 포커스가 있을 때 조절한다. 입력 초기화 직후 이동 시간은 0, 일반 프레임은 최대 0.1초이며 모델 회전은 경과 시간의 차분을 현재 각도에 더한다. 선택 모델의 회전 편집은 자동 회전을 멈추고, 정지 중 시간은 적립하지 않아 재개 시 편집한 각도에서 이어간다. Sandbox의 카메라 시작 위치는 `(0,3,-8)`이며 기존 아래쪽 pitch를 유지한다. SandboxCamera 자체 기본값 `(0,2,-5)`·원점 시선은 회귀 테스트에 유지한다. 키·속도는 [README](../README.md#카메라-조작)를 따른다.
+카메라·조명은 포커스가 있을 때 조절한다. 입력 초기화 직후 이동 시간은 0, 일반 프레임은 최대 0.1초이며 모델 회전은 경과 시간의 차분으로 월드 고정 축의 Quaternion 증분을 만들어 현재 회전 뒤에 합성한다. 선택 모델의 회전 편집은 자동 회전을 멈추고, 정지 중 시간은 적립하지 않아 재개 시 편집한 각도에서 이어간다. Sandbox의 카메라 시작 위치는 `(0,3,-8)`이며 기존 아래쪽 pitch를 유지한다. SandboxCamera 자체 기본값 `(0,2,-5)`·원점 시선은 회귀 테스트에 유지한다. 키·속도는 [README](../README.md#카메라-조작)를 따른다.
 
 ### 프레임별 Fence 동기화
 
