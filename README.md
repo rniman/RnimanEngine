@@ -87,4 +87,4 @@ Visual Studio 솔루션 탐색기의 Docs에서도 프로젝트 문서를 열 �
 | [개발 설정과 검증](docs/development.md) | 컨벤션 적용 상태·설정·검증 명령 |
 | [첫 마일스톤](docs/milestones/v0.1.0-sandbox.md) | v0.1.0 당시 달성 범위·검증·제약 |
 
-작업 전 [컨벤션 적용 상태](docs/development.md#컨벤션)와 [AGENTS.md](AGENTS.md)를 확인한다.
+작업 전 [컨벤션 위키 홈](https://rniman.github.io/convention/)에서 현재 규칙을 확인하고, [컨벤션 접근 절차·적용 상태](docs/development.md#컨벤션)와 [AGENTS.md](AGENTS.md)를 따른다.
