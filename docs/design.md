@@ -56,7 +56,7 @@ SandboxApp은 창·렌더러·SandboxGui·카메라·조명·서로 다른 모�
 
 Sandbox의 인스턴스는 `SandboxApp::ModelInstance`에 Transform·회전 축·초당 회전 속도·자동 회전 여부를 함께 보관한다. `INITIAL_OBJECTS`의 초기 항목 수로 실제 모델과 렌더링 상수 배열 크기를 정하며 선택 UI는 실제 목록을 순회한다. 회전 축은 XMFLOAT3 멤버 포인터로 지정해 개체 주소와 분리한다. 초기 목록은 비어 있지 않은 고정 데모 목록이며 런타임 추가·삭제는 지원하지 않는다.
 
-동적 목록·고유 ID·생성·삭제 흐름은 [다음 구현안](roadmap.md#다음-구현안-일반-오브젝트-장면)이며 아직 적용하지 않았다. 모델 파일의 부모 행렬 합성도 실행 중 장면 계층을 뜻하지 않는다. [계층 지원 범위와 알려진 문제](static-model.md#계층-지원-범위와-알려진-문제)를 따른다.
+동적 목록·고유 ID·생성·삭제 흐름은 [M03 계획](roadmap.md#m03-동적-오브젝트-관리)이며 아직 적용하지 않았다. 모델 파일의 부모 행렬 합성도 실행 중 장면 계층을 뜻하지 않는다. [계층 지원 범위와 알려진 문제](static-model.md#계층-지원-범위와-알려진-문제)를 따른다.
 
 [D3D12Renderer](../Engine/Rendering/D3D12Renderer.cpp)는 두 프레임 슬롯의 Allocator·Constant Buffer·마지막 제출 Fence와 단일 Command List·Direct Queue·Fence/Event를 소유한다.
 

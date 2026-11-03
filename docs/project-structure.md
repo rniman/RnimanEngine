@@ -38,15 +38,13 @@
 | [ModelChecks](../Tests/ModelChecks.cpp)·[MultiModelChecks](../Tests/MultiModelChecks.cpp) | 고정 입력 손상·변환, 실제 모델·JPEG·다중 모델·Wrap 검사 |
 | Tests/Assets/ModelFixture·LegacyModels·WrapModes·ColorTest.jpg | 고정 v2·이전 형식 거부·축별 Wrap·JPEG 회귀 입력 |
 
-삭제된 계획·목록 문서의 대체 위치는 [문서 통합 기록](roadmap.md#기존-계획과-문서-통합)에 둔다. 현재 솔루션 Docs에는 유지 중인 문서만 등록한다.
-
 ### 헤더 전용 Math 모듈
 
 [Math Utility](../Engine/Math/Math.vcxproj)는 수치·벡터·행렬·Quaternion·Transform의 여섯 헤더를 관리한다. 소비자는 Engine include 경로로 포함하며 별도 cpp·lib·ProjectReference는 필요 없다. 헤더는 소비 프로젝트에서 컴파일한다. Utility의 C++20·Engine include 경로·`/utf-8`은 자체 편집·분석 문맥을 위한 설정이다.
 
 실제 사용 흐름은 `LoadStaticModel → DecomposeTransform`, `BuildObjectTransformConstants → BuildNormalTransform`이다. 파일 오류 전달은 Assets, WVP·셰이더 상수 구성은 Rendering에 남는다. TRS 분해는 Quaternion을 직접 저장하고 재구성 오차로 전단을 거부한다. 표시용 Euler와 편집 캐시는 [SandboxRotation](../Sandbox/SandboxRotation.h)이 관리하며, Math에는 UI 상태를 두지 않는다. [계층 지원 범위](static-model.md#계층-지원-범위와-알려진-문제)를 따른다.
 
-연산 계약·사용 예·[MathChecks의 실행 흐름](math.md#mathchecks-검증)은 Math 문서에서 관리한다. MathChecks는 RendererSmoke에 포함하며 별도 MathTests 프로젝트는 없다. 변경 당시 검증은 [개발 기록](development.md#math-적용과-검증-2026-11-02)을 따른다.
+연산 계약·사용 예·[MathChecks의 실행 흐름](math.md#mathchecks-검증)은 Math 문서에서 관리한다. MathChecks는 RendererSmoke에 포함하며 별도 MathTests 프로젝트는 없다.
 
 ### 현재 include 기준과 허용 의존성
 

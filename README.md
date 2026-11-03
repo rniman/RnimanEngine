@@ -8,7 +8,7 @@ Unity Binary v2의 **BrickWallCube·BrickWallSphere·DamagedHelmet**을 동시�
 
 ReferenceImporter·ImGui는 포함되어 있으며 모델·이미지는 별도 준비한다. 현재 Sandbox는 고정 인스턴스 3개를 편집하며 실행 중 생성·삭제와 부모·자식 계층 편집은 지원하지 않는다.
 
-M02는 최신 v2 화면·편집 검증을 남겨 둔 미태깅 상태다. Transform은 Quaternion을 저장하며 모델 로딩에서 Euler 복원을 제거했다. 이후 일반 오브젝트의 생성·삭제를 구현하고 ECS와 비교한다. [로드맵](docs/roadmap.md) · [모델 계약·알려진 문제](docs/static-model.md)
+M02(ImGui·정적 모델)는 완료했다. 현재 개발 목표는 M03(동적 오브젝트 관리)의 생성·삭제·선택·개별 편집이며 아직 구현 전이다. [로드맵](docs/roadmap.md#m03-동적-오브젝트-관리) · [모델 계약·알려진 문제](docs/static-model.md)
 
 ## 빌드와 실행
 
@@ -38,9 +38,7 @@ MSBuild.exe RnimanEngine.slnx -nologo -t:Build -p:Configuration=Release -p:Platf
 
 실행 파일은 `bin/Sandbox/<구성>/Sandbox.exe`, 중간 산출물은 `obj/Sandbox/<구성>/`, 컴파일한 셰이더는 EXE 옆 `Shaders/`에 생성된다. 솔루션 빌드는 세 Smoke도 빌드하며 테스트 실행은 [자동 검증](docs/development.md#자동-검증)을 따른다.
 
-RendererSmoke 기본 실행은 저장소 fixture의 CPU 회귀와 짧은 GPU 수명 검사이며 실제 모델은 필요 없다. `--cpu`는 GPU 초기화 없이 CPU 회귀만, `--full`은 세 모델 bin을 포함한 기존 정밀 검사를 실행한다. ImGuiSmoke는 메모리의 1×1 텍스처를 사용한다. GPU 검사는 두 구성 모두 Graphics Tools가 필요하다. 평소에는 영향받는 대상·작업 구성만 검증하고, 전체 검증은 공통 렌더링 변경이나 마일스톤에 수행한다.
-
-모델 손상·변환 검사는 저장소의 [고정 fixture](Tests/Assets/ModelFixture/README.md)를 사용한다. 실제 모델 BIN 3개는 정상 로딩·렌더링 검증용으로 별도 준비해야 한다.
+RendererSmoke는 기본·`--cpu`·`--full` 범위를 지원한다. 실행 조건과 명령은 [자동 검증](docs/development.md#자동-검증)을 따른다.
 
 모델은 [SourcePaths.props](Build/SourcePaths.props)가 지정한 저장소 원본에서, CSO는 EXE 옆에서 읽는다. 누락·파싱 실패 시 경로와 원인을 보고하고 종료한다. 기본 출력 구조를 유지한 저장소 이동은 가능하지만 EXE·Shaders만 옮기는 독립 실행은 미지원이다. 출력 위치 변경 시 다시 빌드한다. [경로 규칙](docs/project-structure.md#개발-실행의-공용-에셋-경로)
 

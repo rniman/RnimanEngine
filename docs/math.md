@@ -1,6 +1,6 @@
 # 헤더 전용 Math
 
-[README](../README.md) · [프로젝트 구조](project-structure.md#헤더-전용-math-모듈) · [검증 기록](development.md)
+[README](../README.md) · [프로젝트 구조](project-structure.md#헤더-전용-math-모듈)
 
 `Engine/Math/Math.vcxproj`는 헤더를 관리하는 Utility 프로젝트다. 별도 lib·cpp·MathTests 프로젝트는 없다. 소비자는 Engine include 경로에서 필요한 헤더만 포함한다. Math 프로젝트 자체의 헤더 편집·분석에도 C++20·Engine include 경로·`/utf-8`을 지정한다. 일반 함수는 inline이며 PCH·Assets·Rendering·ImGui에 의존하지 않는다.
 
@@ -64,7 +64,7 @@ MathChecks는 **기존 RendererSmoke에 포함된 CPU 수학 검사 코드**다.
 | 행렬 | 역행렬·반전·특이 입력, 점/방향 구분, 투영의 near/far·w=0 |
 | Quaternion | 잘못된 입력, 회전 순서·합성, Slerp의 양 끝점·중간점, q와 -q의 동등성 |
 
-검사 소스 자체는 창·GPU에 의존하지 않지만 **RendererSmoke 전체 실행에는 GPU·셰이더·에셋이 필요하다.** 빌드만으로 검사가 실행되지는 않는다. 실행 명령과 준비 조건은 [자동 검증](development.md#자동-검증), 수행 결과는 [Math 검증 기록](development.md#math-적용과-검증-2026-11-02)에 둔다.
+`RendererSmoke --cpu`로 GPU 없이 실행할 수 있다. 명령과 준비 조건은 [테스트 실행 방법](development.md#자동-검증)을 따른다.
 
 모델 fixture의 TRS 검사는 기존 [ModelChecks.cpp](../Tests/ModelChecks.cpp)의 `CheckModelTransforms`가 담당한다. 양쪽 ±90도와 인접 각도의 실제 파일 로딩·행렬 보존을 검사한다. MathChecks는 표시용 Euler 왕복, 전단·특이·반전 거부와 SandboxRotation의 370° 유지·외부 회전 동기화도 검사한다.
 
