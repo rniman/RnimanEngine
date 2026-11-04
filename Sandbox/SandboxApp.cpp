@@ -25,6 +25,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cwchar>
 #include <filesystem>
 #include <optional>
@@ -105,7 +106,7 @@ namespace rengine
 		// 빌드가 계산한 EXE→저장소 루트 상대 경로를 사용하며 실행용 복사본은 만들지 않는다.
 		const std::filesystem::path assetDirectory =
 			(executableDirectoryResult.directory / RNIMAN_SOURCE_ROOT / L"Assets").lexically_normal();
-		static_assert(MODEL_ASSETS.size() == INITIAL_OBJECTS.size());
+		mModelInfo.resize(MODEL_ASSETS.size());
 		std::array<StaticModel, MODEL_ASSETS.size()> models;
 		std::array<ImageData, MODEL_ASSETS.size()> textures;
 		std::vector<D3D12Renderer::ModelSource> sources;
@@ -127,6 +128,8 @@ namespace rengine
 
 			models[index] = std::move(*loadedModel.model);
 			ModelInfo& info = mModelInfo[index];
+			info.name = asset.name;
+			info.defaultTransform = models[index].transform;
 			info.vertexCount = models[index].mesh.vertices.size();
 			info.triangleCount = models[index].mesh.indices.size() / 3;
 			info.materialWarning = std::move(loadedModel.warning);
@@ -166,7 +169,7 @@ namespace rengine
 				models[index].wrapU, models[index].wrapV });
 		}
 
-		mObjects[0].transform = models[0].transform;
+		mObjects.front().transform = mModelInfo[mObjects.front().modelIndex].defaultTransform;
 		if (!mCamera.SetPosition({ 0.0f, 3.0f, -8.0f }))
 		{
 			return false;
@@ -331,26 +334,40 @@ namespace rengine
 		}
 	}
 
+	SandboxApp::ModelInstance* SandboxApp::FindObject(std::uint64_t id)
+	{
+		for (auto& object : mObjects)
+		{
+			if (object.id == id)
+			{
+				return &object;
+			}
+		}
+
+		return nullptr;
+	}
+
 	void SandboxApp::DrawObjectTools()
 	{
-		const ModelInfo& info = mModelInfo[mSelectedObject];
-		ImGui::SeparatorText(MODEL_ASSETS[mSelectedObject].name);
-		if (!info.materialWarning.empty())
+		ImGui::SeparatorText("Object");
+		const ModelInstance* selectedObject = mSelectedObject ? FindObject(*mSelectedObject) : nullptr;
+		if (selectedObject == nullptr)
 		{
-			ImGui::TextWrapped("%s", info.materialWarning.c_str());
+			mSelectedObject.reset();
 		}
-		ImGui::TextDisabled("%zu vertices / %zu triangles", info.vertexCount, info.triangleCount);
-		const std::string selectedLabel =
-			"Model " + std::to_string(mSelectedObject) + " - " + MODEL_ASSETS[mSelectedObject].name;
+
+		const std::string selectedLabel = selectedObject != nullptr ?
+			"Object " + std::to_string(selectedObject->id) + " - " + mModelInfo[selectedObject->modelIndex].name :
+			"None";
 		if (ImGui::BeginCombo("Selected", selectedLabel.c_str()))
 		{
-			for (std::size_t index = 0; index < mObjects.size(); ++index)
+			for (const auto& object : mObjects)
 			{
-				const std::string label = "Model " + std::to_string(index) + " - " + MODEL_ASSETS[index].name;
-				const bool selected = index == mSelectedObject;
+				const std::string label = "Object " + std::to_string(object.id) + " - " + mModelInfo[object.modelIndex].name;
+				const bool selected = mSelectedObject == object.id;
 				if (ImGui::Selectable(label.c_str(), selected))
 				{
-					mSelectedObject = index;
+					mSelectedObject = object.id;
 				}
 
 				if (selected)
@@ -362,7 +379,23 @@ namespace rengine
 			ImGui::EndCombo();
 		}
 
-		auto& object = mObjects[mSelectedObject];
+		// 선택 변경 후 다시 조회해 통계와 편집 대상을 같은 프레임에 맞춘다.
+		ModelInstance* editableObject = mSelectedObject ? FindObject(*mSelectedObject) : nullptr;
+		if (editableObject == nullptr)
+		{
+			mSelectedObject.reset();
+			ImGui::TextDisabled("No object selected.");
+			return;
+		}
+
+		ModelInstance& object = *editableObject;
+		const ModelInfo& info = mModelInfo[object.modelIndex];
+		ImGui::TextUnformatted(info.name.c_str());
+		if (!info.materialWarning.empty())
+		{
+			ImGui::TextWrapped("%s", info.materialWarning.c_str());
+		}
+		ImGui::TextDisabled("%zu vertices / %zu triangles", info.vertexCount, info.triangleCount);
 		if (!object.rotationEditor.Synchronize(object.transform.rotation))
 		{
 			mInvalidEdit = true;
@@ -410,7 +443,7 @@ namespace rengine
 		}
 
 		ImGui::Checkbox("Auto rotate", &object.autoRotate);
-		ImGui::TextWrapped("Model 0 starts at the exported transform. Rotation edits pause animation.");
+		ImGui::TextWrapped("Rotation edits pause animation.");
 	}
 
 	void SandboxApp::DrawLightingTools()

@@ -15,7 +15,10 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace rengine
 {
@@ -37,6 +40,8 @@ namespace rengine
 	private:
 		struct ModelInstance
 		{
+			std::uint64_t id;
+			std::size_t modelIndex;
 			Transform transform;
 			// 월드 공간의 고정 회전축. 편집한 Quaternion에 증분 회전을 합성한다.
 			DirectX::XMFLOAT3 rotationAxis;
@@ -45,30 +50,34 @@ namespace rengine
 			SandboxRotation rotationEditor;
 		};
 
-		// 초기 목록에서 개수를 유도한다. 선택 UI·회전·렌더링은 이 목록과 같은 크기를 사용한다.
+		// 초기 데모 배치. ID와 모델 번호는 저장 위치와 별개다.
 		static constexpr std::array INITIAL_OBJECTS = {
 			ModelInstance{
-				Transform{}, // 로딩 성공 시 파일의 Transform으로 교체한다.
+				1, 0, Transform{}, // 로딩 성공 시 파일의 Transform으로 교체한다.
 				{ 0, 1, 0 }, 0.7, false, {}
 			},
 			ModelInstance{
-				Transform{ { -2.0f, 0.0f, 0.0f }, { 0, 0, 0, 1 }, { 1.25f, 1.25f, 1.25f } },
+				2, 1, Transform{ { -2.0f, 0.0f, 0.0f }, { 0, 0, 0, 1 }, { 1.25f, 1.25f, 1.25f } },
 				{ 1, 0, 0 }, 0.35, true, {}
 			},
 			ModelInstance{
-				Transform{ { 2.0f, 0.0f, 0.0f }, { 0, 0, 0, 1 }, { 0.8f, 0.8f, 0.8f } },
+				3, 2, Transform{ { 2.0f, 0.0f, 0.0f }, { 0, 0, 0, 1 }, { 0.8f, 0.8f, 0.8f } },
 				{ 0, 0, 1 }, -0.7, true, {}
 			}
 		};
 
 		struct ModelInfo
 		{
+			std::string name;
+			Transform defaultTransform;
 			std::size_t vertexCount = 0;
 			std::size_t triangleCount = 0;
 			std::string materialWarning;
 		};
 
 		[[nodiscard]] bool Initialize(int showCommand);
+		/// @return ID에 해당하는 비소유 포인터, 없으면 nullptr. 추가·삭제를 넘어 보관하지 않는다.
+		ModelInstance* FindObject(std::uint64_t id);
 		void Update(const Win32Window::InputState& input, float deltaSeconds, double elapsedSeconds);
 		void DrawTools();
 		void DrawObjectTools();
@@ -83,10 +92,10 @@ namespace rengine
 		SandboxCamera mCamera;
 		SandboxLighting mLighting;
 		double mPreviousAnimationTime = 0.0;
-		std::size_t mSelectedObject = 0;
-		std::array<ModelInfo, INITIAL_OBJECTS.size()> mModelInfo;
+		std::optional<std::uint64_t> mSelectedObject = INITIAL_OBJECTS.front().id;
+		std::vector<ModelInfo> mModelInfo;
 		bool mShowDemo = false;
 		bool mInvalidEdit = false;
-		std::array<ModelInstance, INITIAL_OBJECTS.size()> mObjects = INITIAL_OBJECTS;
+		std::vector<ModelInstance> mObjects{ INITIAL_OBJECTS.begin(), INITIAL_OBJECTS.end() };
 	};
 }
