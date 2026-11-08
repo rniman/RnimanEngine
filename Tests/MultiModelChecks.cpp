@@ -224,7 +224,72 @@ namespace rengine
 			return false;
 		}
 
-		std::puts("Multi-model: reordered meshes/SRVs/materials, CPU input lifetime and resize passed");
+		// 서로 떨어진 Cube 6개의 단독 결과를 합쳐 같은 모델의 반복 인스턴스 기준을 만든다.
+		std::vector<ObjectTransformConstants> repeated;
+		std::vector<std::size_t> repeatedModels(6, 0);
+		std::vector<std::uint32_t> expected(pixels.size(), background);
+		std::vector<std::uint32_t> single;
+		std::vector<std::uint32_t> firstReference;
+		for (std::size_t index = 0; index < repeatedModels.size(); ++index)
+		{
+			const DirectX::XMMATRIX world = DirectX::XMMatrixScaling(0.5f, 0.5f, 0.5f) *
+				DirectX::XMMatrixTranslation(
+					(static_cast<float>(index % 3) - 1.0f) * 2.0f,
+					index < 3 ? -1.0f : 1.0f, 0);
+			repeated.push_back(BuildObjectTransformConstants(world, view * projection).value());
+			if (!readback.Capture(std::span<const ObjectTransformConstants>(&repeated.back(), 1), lighting, single))
+			{
+				return false;
+			}
+			std::size_t covered = 0;
+			if (index == 0)
+			{
+				firstReference = single;
+			}
+			for (std::size_t pixel = 0; pixel < single.size(); ++pixel)
+			{
+				if (single[pixel] != background)
+				{
+					expected[pixel] = single[pixel];
+					++covered;
+				}
+			}
+			if (covered < 100)
+			{
+				std::printf("FAIL: repeated model reference %zu is not visible\n", index);
+				return false;
+			}
+		}
+
+		// 각 슬롯의 readback을 비교한 뒤 Present로 다음 슬롯으로 이동한다.
+		for (const std::size_t count : { 0u, 6u, 1u, 0u, 6u })
+		{
+			const std::span<const ObjectTransformConstants> frameObjects(repeated.data(), count);
+			const std::span<const std::size_t> frameModels(repeatedModels.data(), count);
+			for (std::size_t slot = 0; slot < 2; ++slot)
+			{
+				if (!readback.Capture(frameObjects, lighting, restored, nullptr, frameModels))
+				{
+					return false;
+				}
+				for (std::size_t pixel = 0; pixel < restored.size(); ++pixel)
+				{
+					const std::uint32_t expectedPixel = count == 0 ? background :
+						(count == 1 ? firstReference[pixel] : expected[pixel]);
+					if (restored[pixel] != expectedPixel)
+					{
+						std::printf("FAIL: instance count %zu slot pass %zu pixel %zu\n", count, slot, pixel);
+						return false;
+					}
+				}
+				if (!renderer.Render(frameObjects, lighting, nullptr, frameModels))
+				{
+					return false;
+				}
+			}
+		}
+
+		std::puts("Multi-model: resource selection, lifetime, resize, empty/grow/shrink and repeated model passed");
 		return true;
 	}
 

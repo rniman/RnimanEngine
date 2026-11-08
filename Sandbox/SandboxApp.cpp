@@ -28,7 +28,10 @@
 #include <cstdint>
 #include <cwchar>
 #include <filesystem>
+#include <limits>
+#include <new>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -170,6 +173,11 @@ namespace rengine
 		}
 
 		mObjects.front().transform = mModelInfo[mObjects.front().modelIndex].defaultTransform;
+		for (const auto& object : INITIAL_OBJECTS)
+		{
+			mModelInfo[object.modelIndex].rotationAxis = object.rotationAxis;
+			mModelInfo[object.modelIndex].rotationSpeed = object.rotationSpeed;
+		}
 		if (!mCamera.SetPosition({ 0.0f, 3.0f, -8.0f }))
 		{
 			return false;
@@ -239,6 +247,7 @@ namespace rengine
 			Update(input, deltaSeconds, elapsedSeconds);
 			DrawTools();
 			mGui.EndFrame();
+			ApplyObjectRequests();
 			if (!Render())
 			{
 				return 1;
@@ -347,9 +356,106 @@ namespace rengine
 		return nullptr;
 	}
 
+	std::optional<std::uint64_t> SandboxApp::CreateObject(std::size_t modelIndex)
+	{
+		if (modelIndex >= mModelInfo.size() || !mNextObjectId)
+		{
+			mObjectError = modelIndex >= mModelInfo.size() ? "Invalid model index." : "Object IDs exhausted.";
+			return std::nullopt;
+		}
+
+		const ModelInfo& model = mModelInfo[modelIndex];
+		const std::uint64_t id = *mNextObjectId;
+		try
+		{
+			mObjects.push_back({ id, modelIndex, model.defaultTransform,
+				model.rotationAxis, model.rotationSpeed, false, {} });
+		}
+		catch (const std::bad_alloc&)
+		{
+			mObjectError = "Cannot allocate another object.";
+			return std::nullopt;
+		}
+		catch (const std::length_error&)
+		{
+			mObjectError = "Object storage limit reached.";
+			return std::nullopt;
+		}
+
+		if (id == std::numeric_limits<std::uint64_t>::max())
+		{
+			mNextObjectId.reset();
+		}
+		else
+		{
+			mNextObjectId = id + 1;
+		}
+		return id;
+	}
+
+	void SandboxApp::DeleteObject(std::uint64_t id)
+	{
+		const auto found = std::find_if(mObjects.begin(), mObjects.end(),
+			[id](const ModelInstance& object) { return object.id == id; });
+		if (found == mObjects.end())
+		{
+			mObjectError = "Object to delete was not found.";
+			return;
+		}
+		mObjects.erase(found);
+		mSelectedObject.reset();
+	}
+
+	void SandboxApp::ApplyObjectRequests()
+	{
+		if (mDeleteRequest || mCreateRequest)
+		{
+			mObjectError.clear();
+			mInvalidEdit = false;
+		}
+		// UI에서 빌린 참조의 사용이 끝난 뒤 삭제·생성을 순서대로 적용한다.
+		if (mDeleteRequest)
+		{
+			DeleteObject(*mDeleteRequest);
+			mDeleteRequest.reset();
+		}
+		if (mCreateRequest)
+		{
+			if (const std::optional<std::uint64_t> id = CreateObject(*mCreateRequest))
+			{
+				mSelectedObject = *id;
+			}
+			mCreateRequest.reset();
+		}
+	}
+
 	void SandboxApp::DrawObjectTools()
 	{
 		ImGui::SeparatorText("Object");
+		if (ImGui::BeginCombo("Create model", mModelInfo[mCreateModel].name.c_str()))
+		{
+			for (std::size_t index = 0; index < mModelInfo.size(); ++index)
+			{
+				const bool selected = index == mCreateModel;
+				if (ImGui::Selectable(mModelInfo[index].name.c_str(), selected))
+				{
+					mCreateModel = index;
+				}
+				if (selected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+			ImGui::EndCombo();
+		}
+		if (ImGui::Button("Create"))
+		{
+			mCreateRequest = mCreateModel;
+		}
+		if (!mObjectError.empty())
+		{
+			ImGui::TextWrapped("%s", mObjectError.c_str());
+		}
 		const ModelInstance* selectedObject = mSelectedObject ? FindObject(*mSelectedObject) : nullptr;
 		if (selectedObject == nullptr)
 		{
@@ -381,6 +487,12 @@ namespace rengine
 
 		// 선택 변경 후 다시 조회해 통계와 편집 대상을 같은 프레임에 맞춘다.
 		ModelInstance* editableObject = mSelectedObject ? FindObject(*mSelectedObject) : nullptr;
+		ImGui::BeginDisabled(editableObject == nullptr);
+		if (ImGui::Button("Delete selected"))
+		{
+			mDeleteRequest = mSelectedObject;
+		}
+		ImGui::EndDisabled();
 		if (editableObject == nullptr)
 		{
 			mSelectedObject.reset();
@@ -494,20 +606,27 @@ namespace rengine
 			0.1f,
 			100.0f);
 
-		std::array<ObjectTransformConstants, INITIAL_OBJECTS.size()> objectConstants;
-		for (std::size_t index = 0; index < mObjects.size(); ++index)
+		mObjectConstants.clear();
+		mModelIndices.clear();
+		const DirectX::XMMATRIX viewProjection = view * projection;
+		for (const auto& object : mObjects)
 		{
 			const std::optional<ObjectTransformConstants> constantsResult = BuildObjectTransformConstants(
-				mObjects[index].transform.GetWorld(), view * projection);
+				object.transform.GetWorld(),
+				viewProjection);
 			if (!constantsResult)
 			{
-				const wchar_t* message = L"Sandbox model transform is non-finite, singular or reflected.";
+				wchar_t message[256]{};
+				swprintf_s(message,
+					L"Sandbox object %llu (model %zu): transform is non-finite, singular or reflected.",
+					static_cast<unsigned long long>(object.id), object.modelIndex);
 				OutputDebugStringW(message);
 				MessageBoxW(mWindow.GetHandle(), message, L"Sandbox transform error", MB_OK | MB_ICONERROR);
 				return false;
 			}
 
-			objectConstants[index] = *constantsResult;
+			mObjectConstants.push_back(*constantsResult);
+			mModelIndices.push_back(object.modelIndex);
 		}
 
 		FrameLighting lighting;
@@ -515,8 +634,6 @@ namespace rengine
 		lighting.intensity = mLighting.GetIntensity();
 		lighting.cameraPosition = mCamera.GetPosition();
 		const D3D12Renderer::OverlayPass overlay = mGui.GetOverlayPass();
-		// 실제 오브젝트의 번호와 초기화한 모델 번호가 일치한다.
-		constexpr std::array<std::size_t, INITIAL_OBJECTS.size()> modelIndices = { 0, 1, 2 };
-		return mRenderer.Render(objectConstants, lighting, &overlay, modelIndices);
+		return mRenderer.Render(mObjectConstants, lighting, &overlay, mModelIndices);
 	}
 }

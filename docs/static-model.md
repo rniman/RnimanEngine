@@ -38,19 +38,17 @@ v2는 텍스처 바인딩별 `wrapU`·`wrapV`를 저장한다(0 Repeat, 1 ClampT
 | 제한 | 불투명 Lit·뒤쪽 컬링만 허용. Unlit·alpha clip·반투명·다른 컬링은 오류. PBR 값·기타 맵은 미적용 진단 |
 | 이미지 | 확장자 없는 UTF-8 textureRef. 큐브·구체는 벽돌 폴더의 PNG, Helmet은 별도 폴더의 JPEG. TSV·GUID 매핑·재귀 검색 없음 |
 
-`Model 0`은 내보낸 Transform·회전 정지 상태로 시작한다. Model 1은 구체를 `(-2,0,0)`·Scale 1.25, Model 2는 Helmet을 `(2,0,0)`·Scale 0.8로 배치해 X/Z축으로 회전한다. UI 편집은 메모리에만 유지한다.
+초기 Object 1(Cube)은 내보낸 Transform·회전 정지 상태로 시작한다. Object 2(Sphere)는 `(-2,0,0)`·Scale 1.25, Object 3(Helmet)은 `(2,0,0)`·Scale 0.8로 배치해 각각 X/Z축으로 회전한다. 모델 번호는 각각 0·1·2이며 UI 편집은 메모리에만 유지한다.
 
-## 계층 지원 범위와 알려진 문제
+## 계층 지원 범위
 
 Reader가 읽는 노드 계층과 엔진이 보존하는 장면 계층은 다르다. 부모 노드가 여러 개여도 메시 노드가 하나이고 합성 결과가 지원하는 TRS이면 로딩할 수 있다. 반환값에는 최종 Transform 하나만 남으며 부모 관계·개별 노드 편집은 보존하지 않는다. 여러 메시 노드는 거부한다. 부모의 비균일 Scale과 자식 회전으로 생기는 전단도 현재 TRS 계약 밖이다.
-
-이전 Euler 기반 Transform에서는 pitch ±90도 근처에서 정상 TRS가 거부됐다. 재현 입력은 rotation `(π/2 − 0.001, −0.6, 0.4)`, scale `(2, 0.7, 1.3)`이다. 현재는 분해 결과의 Quaternion을 정규화해 직접 저장하므로 로딩에서 Euler 복원을 거치지 않는다. 양쪽 부호의 정확한 극점·인접 각도에서 행렬 보존을 회귀 검사하며, TRS로 표현할 수 없는 전단은 재구성 검사로 계속 거부한다. Binary v2 규격은 변경하지 않아 재익스포트는 필요 없다.
 
 ## 여러 모델의 GPU 수명과 선택
 
 ModelSource는 호출 중에만 빌리는 이미지 참조·메시 포인터와 BaseColor·Wrap 값이다. Initialize 목록 순서가 모델 번호이며, 렌더러가 모델별 메시·텍스처·재질과 동일 번호의 SRV를 소유한다. 같은 번호의 인스턴스는 자원을 공유한다. 실행 중 모델 추가·삭제·교체는 미지원이다.
 
-Render의 modelIndices는 비어 있으면 모델 0을 사용한다. 지정하면 Transform 수와 같고 모든 번호가 범위 안이어야 한다. Sandbox는 `{0,1,2}`를 전달한다. draw마다 메시·SRV·재질을 선택하며 PSO·조명·깊이 버퍼·Fence는 공유한다.
+Render의 modelIndices는 비어 있으면 모델 0을 사용한다. 지정하면 Transform 수와 같고 모든 번호가 범위 안이어야 한다. Sandbox는 현재 인스턴스에서 모델 번호를 수집해 전달한다. draw마다 메시·SRV·재질을 선택하며 PSO·조명·깊이 버퍼·Fence는 공유한다.
 
 메시는 Upload Heap, 텍스처는 Default Heap에 보관한다. 큰 메시·스트리밍이 필요하면 메시 Default Heap 업로드를 검토한다. 같은 벽돌 이미지도 현재 두 모델에 각각 복사하며 캐시는 없다. GPU 완료 후 종료·부분 초기화 자원을 정리한다.
 

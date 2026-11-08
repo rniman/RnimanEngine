@@ -8,6 +8,7 @@
 #include "Math/Transform.h"
 #include "Platform/Win32Window.h"
 #include "Rendering/D3D12Renderer.h"
+#include "Rendering/RenderData.h"
 
 // Windows 선언은 DirectX 헤더보다 먼저 필요하다.
 #include <Windows.h>
@@ -70,6 +71,8 @@ namespace rengine
 		{
 			std::string name;
 			Transform defaultTransform;
+			DirectX::XMFLOAT3 rotationAxis{ 0, 1, 0 };
+			double rotationSpeed = 0.7;
 			std::size_t vertexCount = 0;
 			std::size_t triangleCount = 0;
 			std::string materialWarning;
@@ -78,6 +81,10 @@ namespace rengine
 		[[nodiscard]] bool Initialize(int showCommand);
 		/// @return ID에 해당하는 비소유 포인터, 없으면 nullptr. 추가·삭제를 넘어 보관하지 않는다.
 		ModelInstance* FindObject(std::uint64_t id);
+		/// @return 생성한 ID. 실패하면 목록·선택을 유지하고 오류를 저장한다.
+		std::optional<std::uint64_t> CreateObject(std::size_t modelIndex);
+		void DeleteObject(std::uint64_t id);
+		void ApplyObjectRequests();
 		void Update(const Win32Window::InputState& input, float deltaSeconds, double elapsedSeconds);
 		void DrawTools();
 		void DrawObjectTools();
@@ -94,8 +101,15 @@ namespace rengine
 		double mPreviousAnimationTime = 0.0;
 		std::optional<std::uint64_t> mSelectedObject = INITIAL_OBJECTS.front().id;
 		std::vector<ModelInfo> mModelInfo;
+		std::optional<std::uint64_t> mNextObjectId = 4;
+		std::size_t mCreateModel = 0;
+		std::optional<std::size_t> mCreateRequest;
+		std::optional<std::uint64_t> mDeleteRequest;
+		std::string mObjectError;
 		bool mShowDemo = false;
 		bool mInvalidEdit = false;
 		std::vector<ModelInstance> mObjects{ INITIAL_OBJECTS.begin(), INITIAL_OBJECTS.end() };
+		std::vector<ObjectTransformConstants> mObjectConstants;
+		std::vector<std::size_t> mModelIndices;
 	};
 }

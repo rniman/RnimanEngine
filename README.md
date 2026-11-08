@@ -6,9 +6,9 @@ D3D12 기반 미니 게임 엔진. 장면·입력·게임 로직·렌더링·리
 
 Unity Binary v2의 **BrickWallCube·BrickWallSphere·DamagedHelmet**을 동시에 로딩하고 Phong으로 렌더링하며 ImGui로 편집한다. 파일별 단일 메시·Submesh·재질을 지원하고 BaseColor·축별 Wrap U/V를 적용한다. 전체 씬·ECS·PBR은 미구현이다.
 
-ReferenceImporter·ImGui는 포함되어 있으며 모델·이미지는 별도 준비한다. 현재 Sandbox는 고정 인스턴스 3개를 편집하며 실행 중 생성·삭제와 부모·자식 계층 편집은 지원하지 않는다.
+ReferenceImporter·ImGui는 포함되어 있으며 모델·이미지는 별도 준비한다. Sandbox는 초기 인스턴스 3개로 시작하며 실행 중 생성·삭제·선택·개별 편집을 지원한다. 부모·자식 계층 편집은 지원하지 않는다.
 
-M02(ImGui·정적 모델)는 완료했다. 현재 개발 목표는 M03(동적 오브젝트 관리)의 생성·삭제·선택·개별 편집이며 아직 구현 전이다. [로드맵](docs/roadmap.md#m03-동적-오브젝트-관리) · [모델 계약·알려진 문제](docs/static-model.md)
+M02(ImGui·정적 모델)에 이어 M03의 ID 기반 선택·가변 렌더 입력·생성·삭제 UI를 구현했다. [로드맵](docs/roadmap.md#m03-동적-오브젝트-관리) · [정적 모델 계약](docs/static-model.md)
 
 ## 빌드와 실행
 
@@ -44,10 +44,12 @@ RendererSmoke는 기본·`--cpu`·`--full` 범위를 지원한다. 실행 조건
 
 ## 개발 UI
 
-`Sandbox Tools` 패널에서 모델 인스턴스 선택·위치·회전(Euler degree)·양수 Scale, 카메라 위치, 방향광 yaw/pitch·강도를 편집한다. 숫자는 드래그하거나 Ctrl+클릭으로 입력한다. 편집 값은 실행 중에만 유지한다. Model 0의 초기 Position은 `(0,0,0)`, Scale은 `(1,1,1)`이며 카메라는 `(0,3,-8)`에서 시작한다.
+`Create model`에서 모델을 고르고 `Create`를 누르면 파일의 기본 Transform으로 생성하고 새 오브젝트를 선택한다. 자동 회전은 꺼진 상태다. 같은 위치에 생성하면 겹칠 수 있다. `Selected` 목록의 `Object <ID> - <모델 이름>`으로 구분하며, `Delete selected`는 선택한 오브젝트를 삭제하고 선택을 해제한다. 전체 삭제 후에도 생성·카메라·조명 UI를 사용할 수 있다. Object 번호는 내부 ID이며 삭제한 번호를 재사용하지 않는다.
 
-- 모델별 Euler 편집값을 유지하므로 370° 같은 입력이 즉시 10°로 바뀌지 않는다. 외부 회전 변경 시 이전 표시값에 가까운 Euler 표현으로 동기화한다. 극점에서는 표시 각도가 달라질 수 있다.
-- 자동 회전은 모델별 월드 고정 축의 Quaternion 증분을 합성한다. 회전 편집은 선택한 모델의 자동 회전을 정지한다. `Auto rotate`로 재개하면 편집한 방향에서 이어간다. 위치·Scale 편집은 자동 회전을 중단하지 않는다.
+`Sandbox Tools` 패널에서 모델 인스턴스 선택·위치·회전(Euler degree)·양수 Scale, 카메라 위치, 방향광 yaw/pitch·강도를 편집한다. 숫자는 드래그하거나 Ctrl+클릭으로 입력한다. 편집 값은 실행 중에만 유지한다. Object 1(Cube)의 초기 Position은 `(0,0,0)`, Scale은 `(1,1,1)`이며 카메라는 `(0,3,-8)`에서 시작한다.
+
+- 오브젝트별 Euler 편집값을 유지하므로 370° 같은 입력이 즉시 10°로 바뀌지 않는다. 외부 회전 변경 시 이전 표시값에 가까운 Euler 표현으로 동기화한다. 극점에서는 표시 각도가 달라질 수 있다.
+- 자동 회전은 오브젝트별 월드 고정 축의 Quaternion 증분을 합성한다. 회전 편집은 선택한 오브젝트의 자동 회전을 정지한다. `Auto rotate`로 재개하면 편집한 방향에서 이어간다. 위치·Scale 편집은 자동 회전을 중단하지 않는다.
 - Scale은 0.05~10, 위치는 −100~100으로 제한한다. 비유한·특이·반전 변환은 거부하고 패널에 표시한다.
 - `Show Dear ImGui Demo`로 공식 Demo Window를 열고, `Reset light`로 기존 R 키와 같은 초기값을 적용한다.
 - UI가 마우스·키보드를 캡처하는 동안 해당 카메라·조명 조작을 차단한다. 장면의 빈 곳을 클릭하면 앱 키 조작으로 돌아간다.
@@ -82,7 +84,7 @@ Visual Studio 솔루션 탐색기의 Docs에서도 프로젝트 문서를 열 �
 | [개발 목표와 순서](docs/roadmap.md) | 개발 범위·순서와 다음 마일스톤 |
 | [Math 연산](docs/math.md) | 헤더 전용 연산 목록·실패·수치 범위·검증 |
 | [엔진 설계](docs/design.md) | 좌표계·실행·렌더링 계약과 확장 방향 |
-| [정적 모델 계약](docs/static-model.md) | Binary v2·에셋 준비·계층 지원 범위·알려진 문제 |
+| [정적 모델 계약](docs/static-model.md) | Binary v2·에셋 준비·계층 지원 범위 |
 | [프로젝트 구조](docs/project-structure.md) | 코드 소속·의존성·공유 자원·출력 경로 |
 | [외부 라이브러리와 에셋](docs/dependencies.md) | 공급 버전·라이선스·에셋과 후속 후보 |
 | [개발 설정과 검증](docs/development.md) | 컨벤션 적용 상태·설정·검증 명령 |

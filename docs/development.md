@@ -34,6 +34,7 @@
 | 예외·미정 | Sandbox 전용 구현은 필요 시 pch.h를 먼저 포함하고 Engine은 PCH를 사용하지 않는다. Windows→DirectX include 순서·긴 오류 문자열 예외와 Sandbox·Tests의 평면 배치를 유지한다. 모델별 의미상 정면·거리 단위는 에셋 계약에 두고, 비정방 행렬·행렬 배열은 별도 패킹 검증이 필요하다. |
 | ImGui 시험 적용 | SandboxGui 단일 문맥·전용 64칸 SRV 힙·GPU 대기 후 종료, Win32 메시지 콜백·선택 OverlayPass를 실제 Sandbox·ImGuiSmoke에 적용했다. 장면/Engine의 ImGui 의존성과 범용 UI/descriptor 관리자는 추가하지 않았다. 외부 소스는 원본·공급 구조·MIT를 유지하고 해당 두 타깃에서만 PCH 없이 `/W3`·`/WX` 해제로 컴파일한다. 자체 C++는 기존 `rengine`·직접 include·RAII를 적용한다. 사용자 텍스처/여러 도구의 공유 수요가 생기면 descriptor 할당을 공통화할 후보로 재검토한다. |
 | Math | 헤더 전용·직접 include·출력 값 초기화·실패 계약 주석을 적용한다. 실패 가능한 연산은 Try 접두사 없이 optional로 결과를 전달하는 프로젝트 규칙을 사용한다. 공용 연산의 선행 추가는 사용처 우선 원칙의 예외이며 Sandbox 연산을 일괄 교체하지 않는다. SandboxRotation은 Quaternion과 Euler 편집값의 일관성을 위해 비공개 상태를 사용한다. |
+| M03 식별·저장 | App의 vector 값 소유와 optional 선택 ID를 적용했다. 작은 목록은 선형 조회하며 반환 포인터의 추가·삭제 전 수명을 명시한다. 별도 관리자·검색 맵은 도입하지 않고 빈번한 조회·재사용 수요가 생길 때 검토한다. |
 | 공통 초안 | 자료형·변환·attribute 전체, 클래스 미결정 정책, HLSL·검증·원본/생성물 규칙은 공통 채택으로 확대하지 않는다. 포맷터·경고 오류화·캐시는 필요와 검증 조건이 생길 때 검토한다. |
 
 ### 모델 로딩 적용
@@ -106,5 +107,6 @@ WindowSmoke·ImGuiSmoke는 각각 `Tests/WindowSmoke.vcxproj`·`Tests/ImGuiSmoke
 | RendererSmoke 실행 범위 (2026-11-03) | Debug 기본·`--cpu`·`--full` 종료 코드 0, GPU 오류·경고 0. Release는 실행 범위 변경 후 재실행하지 않음 |
 | M02 회전 UI (2026-11-03) | 기존 Debug·Release 실행 파일의 Model 0에서 370° 유지, ±90° 경계 편집, 자동 회전 정지·재개. UI 자동화·화면 관찰이며 재빌드·D3D12 진단 수집 없음 |
 | M02 수동 조작 (2026-11-03) | 세 모델 표시·선택·Transform·카메라·조명·입력 차단·포커스·리사이즈·종료 이상 없음. 실행 구성 미기록 |
+| M03 (2026-11-04~05) | Debug·Release 빌드·RendererSmoke 전체·ImGuiSmoke 통과. 두 프레임 슬롯의 0개·증가·감소 픽셀 비교 포함. Debug UI에서 생성·삭제·ID 보존·독립 편집·리사이즈·종료 관찰. Release UI·실패 주입은 미수행 |
 
 메모리 부족·장치 제거 주입, 전체 live-object 검사와 성능 측정은 미수행이다. 이전 마일스톤은 [v0.1.0 기록](milestones/v0.1.0-sandbox.md)을 참고한다.
